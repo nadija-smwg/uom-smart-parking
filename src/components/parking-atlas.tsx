@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Route, Search } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Pause, Play, Route, Search } from "lucide-react";
+import { AtlasCar } from "./atlas-car";
 import { campusDirectionsUrl, categories, categoryDisplay } from "@/lib/contracts";
 import { StreetTrace } from "./street-trace";
 import { useParkingMotion } from "@/lib/use-parking-motion";
@@ -30,6 +31,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [trace, setTrace] = useState(false);
+  const [carPaused, setCarPaused] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const picker = useRef<HTMLSelectElement>(null);
   const sheet = useRef<HTMLElement>(null);
@@ -60,12 +62,17 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
     <header className="atlas-mast atlas-width">
       <SiteBrand />
       <nav aria-label="Main navigation">
+        <button className="atlas-car-toggle" aria-label={carPaused ? "Resume car animation" : "Pause car animation"}
+          title={carPaused ? "Resume car animation" : "Pause car animation"} onClick={() => setCarPaused(!carPaused)}>
+          {carPaused ? <Play size={16} /> : <Pause size={16} />}
+        </button>
         <a className="atlas-directions" href={campusDirectionsUrl} referrerPolicy="no-referrer">Campus directions <ArrowUpRight size={16} /></a>
         <Link className="atlas-key" href="/account">Sign in <ArrowRight size={16} /></Link>
       </nav>
     </header>
     <main className="atlas-width">
       <div className="atlas-spread">
+        <AtlasCar paused={carPaused} />
         <section ref={cover} className="atlas-cover" aria-labelledby="atlas-title">
           <p className="atlas-kicker"><span />University of Moratuwa</p>
           <h1 id="atlas-title" aria-label="Parking atlas"><span className="atlas-word"><b>Parking</b></span><span className="atlas-word"><b>atlas<i>.</i></b></span></h1>

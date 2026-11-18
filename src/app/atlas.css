@@ -227,6 +227,24 @@
   .atlas-turn { justify-content: end; flex: 1 0 100%; }
   .atlas-mast .site-brand { gap: .4rem; font-size: .86rem; }
 }
+.atlas-spread { position: relative; }
+.atlas-car-track { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.atlas-car { position: absolute; top: 0; left: 0; height: auto; max-width: none; visibility: hidden;
+  offset-anchor: 50% 50%; offset-rotate: auto; }
+.atlas-site .atlas-car-toggle { min-width: 44px; min-height: 44px; padding: .4rem; border-radius: .2rem; background: transparent; }
+@media (min-width: 721px) {
+  .atlas-spread { padding-block: max(2.4rem, min(3svh, 4.7rem)); column-gap: clamp(2.75rem, 4.5vw, 5.5rem); }
+}
+@media (max-width: 720px) {
+  .atlas-spread { row-gap: 2.25rem; }
+}
+@media (max-width: 380px) {
+  .atlas-mast nav { gap: .2rem; }
+  .atlas-mast { gap: .3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-site .atlas-car-toggle { display: none; }
+}
 @media (prefers-reduced-motion: no-preference) {
   @keyframes atlas-scan { from { transform: translateX(-100%); } to { transform: translateX(410%); } }
   @keyframes map-stamp { from { transform: translateY(-9px) scale(1.1); opacity: .4; } to { transform: none; opacity: 1; } }

@@ -25,6 +25,7 @@ Open the app and you get a campus sheet you can use before signing in. Pick **Li
 | Select a zone | The detail strip updates immediately. The locator glides to the zone’s schematic coordinates and its outline settles around the endpoint. Rapid selections retarget the same element. | 380 ms travel. The outline settles for 360 ms after a 300 ms delay. |
 | Trace Main Street | A GSAP marker travels with the line along the stored points of **UoM Main Street**. Segment length determines its share of the drawing time. The toggle hides the highlight or replays it. | 1,100 ms total. |
 | Reported availability changes | The new value appears immediately and moves up a fraction of a line. It displays only the value reported by the API. | 160 ms. |
+| Browse the homepage | A transparent orange coupe follows the paper gutters around the campus sheet. On stacked screens it crosses between the cover and map. The header offers pause and resume. Reduced motion parks it. | About 90 CSS pixels per second. |
 | Open the campus sheet | A single sweep crosses the map as the landmark labels settle into place. | 1.15 s sweep. |
 | Browse the directory or switch views | Directory rows, account fields, board sections, and map controls enter in sequence. Zone changes replay the selected details. | 460 ms per element with up to 320 ms of stagger. |
 | Open the parking board | Category bars reveal their current values from left to right. | 550 ms plus a short stagger. |
@@ -38,6 +39,7 @@ Use the current application from Phases 1–6 as the starting point. The blocks 
 
 | Add | Replace |
 | --- | --- |
+| `src/components/atlas-car.tsx` | |
 | `src/components/campus-plate.tsx` | `scripts/campus.mjs` |
 | `src/components/street-trace.tsx` | `src/app/page.tsx` |
 | `src/components/parking-atlas.tsx` | `src/app/account/page.tsx` |
@@ -51,13 +53,16 @@ npm install --save-exact @fontsource/barlow-condensed@5.3.0
 npm install --save-dev --save-exact @napi-rs/canvas@1.1.1
 ```
 
-**Write the nine files.** Copy each source block to its named path, or run this block from the root of the working copy where you want the redesign. It replaces the five files listed above. Use a copy that includes any local UI work you want to keep for comparison.
+Copy the bundled [transparent coupe](../public/atlas-coupe.webp) to `public/atlas-coupe.webp` in the reconstructed app.
+
+**Write the ten files.** Copy each source block to its named path, or run this block from the root of the working copy where you want the redesign. It replaces the five files listed above. Use a copy that includes any local UI work you want to keep for comparison.
 
 ```powershell
 $atlasRoot = (Get-Location).Path
 $atlasDoc = [IO.File]::ReadAllText((Join-Path $atlasRoot 'workplan/07-animated-parking-atlas.md'))
 $atlasPaths = @(
   'scripts/campus.mjs'
+  'src/components/atlas-car.tsx'
   'src/components/campus-plate.tsx'
   'src/components/street-trace.tsx'
   'src/components/parking-atlas.tsx'
@@ -105,6 +110,7 @@ Open [the example local address](http://localhost:3107). For interactive editing
 5. Follow **Find parking** while signed out, open visitor registration, and switch to password recovery. With a driver session, verify the board against the authenticated snapshot and use **View campus** to select a zone on the live map.
 6. Operate the zone picker and directory with the keyboard. Use the existing app checks for offline status, eligibility, claims, release, and officer permissions when merging.
 7. Replay the street trace and enable reduced motion while the marker is traveling. It should settle at the endpoint. Open the directory, locate a result, and switch registration modes during their entrances. Check that focus and typing remain available throughout.
+8. Follow the coupe from edge to edge at desktop and phone widths. Check clearance around the cover, campus sheet, masthead, and directory. Pause and resume it from the header, then enable reduced motion and confirm it stays parked. The route was sampled at 500 positions per viewport across 11 layouts from 320 to 1920 CSS pixels.
 
 ## Verification record
 
@@ -324,7 +330,8 @@ export function StreetTrace() {
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Route, Search } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Pause, Play, Route, Search } from "lucide-react";
+import { AtlasCar } from "./atlas-car";
 import { campusDirectionsUrl, categories, categoryDisplay } from "@/lib/contracts";
 import { StreetTrace } from "./street-trace";
 import { useParkingMotion } from "@/lib/use-parking-motion";
@@ -352,6 +359,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [trace, setTrace] = useState(false);
+  const [carPaused, setCarPaused] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const picker = useRef<HTMLSelectElement>(null);
   const sheet = useRef<HTMLElement>(null);
@@ -382,12 +390,17 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
     <header className="atlas-mast atlas-width">
       <SiteBrand />
       <nav aria-label="Main navigation">
+        <button className="atlas-car-toggle" aria-label={carPaused ? "Resume car animation" : "Pause car animation"}
+          title={carPaused ? "Resume car animation" : "Pause car animation"} onClick={() => setCarPaused(!carPaused)}>
+          {carPaused ? <Play size={16} /> : <Pause size={16} />}
+        </button>
         <a className="atlas-directions" href={campusDirectionsUrl} referrerPolicy="no-referrer">Campus directions <ArrowUpRight size={16} /></a>
         <Link className="atlas-key" href="/account">Sign in <ArrowRight size={16} /></Link>
       </nav>
     </header>
     <main className="atlas-width">
       <div className="atlas-spread">
+        <AtlasCar paused={carPaused} />
         <section ref={cover} className="atlas-cover" aria-labelledby="atlas-title">
           <p className="atlas-kicker"><span />University of Moratuwa</p>
           <h1 id="atlas-title" aria-label="Parking atlas"><span className="atlas-word"><b>Parking</b></span><span className="atlas-word"><b>atlas<i>.</i></b></span></h1>
@@ -877,6 +890,24 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
   .atlas-turn { justify-content: end; flex: 1 0 100%; }
   .atlas-mast .site-brand { gap: .4rem; font-size: .86rem; }
 }
+.atlas-spread { position: relative; }
+.atlas-car-track { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.atlas-car { position: absolute; top: 0; left: 0; height: auto; max-width: none; visibility: hidden;
+  offset-anchor: 50% 50%; offset-rotate: auto; }
+.atlas-site .atlas-car-toggle { min-width: 44px; min-height: 44px; padding: .4rem; border-radius: .2rem; background: transparent; }
+@media (min-width: 721px) {
+  .atlas-spread { padding-block: max(2.4rem, min(3svh, 4.7rem)); column-gap: clamp(2.75rem, 4.5vw, 5.5rem); }
+}
+@media (max-width: 720px) {
+  .atlas-spread { row-gap: 2.25rem; }
+}
+@media (max-width: 380px) {
+  .atlas-mast nav { gap: .2rem; }
+  .atlas-mast { gap: .3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-site .atlas-car-toggle { display: none; }
+}
 @media (prefers-reduced-motion: no-preference) {
   @keyframes atlas-scan { from { transform: translateX(-100%); } to { transform: translateX(410%); } }
   @keyframes map-stamp { from { transform: translateY(-9px) scale(1.1); opacity: .4; } to { transform: none; opacity: 1; } }
@@ -917,5 +948,114 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
   .atlas-key svg, .atlas-index button > svg { transition: transform 150ms ease-out; }
   .atlas-key:hover svg, .atlas-key:focus-visible svg { transform: translateX(3px); }
   .atlas-index button:hover > svg { transform: translate(2px,-2px); }
+}
+```
+
+### `src/components/atlas-car.tsx`
+
+<!-- atlas-file: src/components/atlas-car.tsx -->
+
+```tsx
+"use client";
+
+import Image from "next/image";
+import { useLayoutEffect, useRef } from "react";
+
+export function AtlasCar({ paused }: { paused: boolean }) {
+  const track = useRef<HTMLDivElement>(null);
+  const sprite = useRef<HTMLImageElement>(null);
+  const playback = useRef<() => void>(() => {});
+  const pauseRequested = useRef(paused);
+
+  useLayoutEffect(() => {
+    pauseRequested.current = paused;
+    playback.current();
+  }, [paused]);
+
+  useLayoutEffect(() => {
+    const lane = track.current;
+    const car = sprite.current;
+    const spread = lane?.parentElement;
+    const cover = spread?.querySelector<HTMLElement>(".atlas-cover");
+    const sheet = spread?.querySelector<HTMLElement>(".atlas-sheet");
+    if (!lane || !car || !spread || !cover || !sheet) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let drive: Animation | undefined;
+    let inView = true;
+    function updatePlayback() {
+      if (!drive) return;
+      if (pauseRequested.current || reduced.matches || document.hidden || !inView) drive.pause();
+      else drive.play();
+    }
+    playback.current = updatePlayback;
+
+    function measure() {
+      if (!lane || !car || !cover || !sheet) return;
+      const progress = drive?.effect?.getComputedTiming().progress ?? .08;
+      drive?.cancel();
+      drive = undefined;
+      const width = lane.clientWidth;
+      const coverBottom = cover.offsetTop + cover.offsetHeight;
+      let size: number;
+      let path: string;
+      let length: number;
+      if (sheet.offsetTop >= coverBottom) {
+        // On stacked layouts the horizontal gap separates both content boxes.
+        const gap = sheet.offsetTop - coverBottom;
+        const y = coverBottom + gap / 2;
+        size = Math.min(60, (gap - 10) * 2);
+        path = `M ${-size} ${y} H ${width + size}`;
+        length = width + size * 2;
+      } else {
+        const coverRight = cover.offsetLeft + cover.offsetWidth;
+        const gap = sheet.offsetLeft - coverRight;
+        const x = coverRight + gap / 2;
+        const headroom = Math.min(cover.offsetTop, sheet.offsetTop);
+        const contentEnd = Math.max(coverBottom, sheet.offsetTop + sheet.offsetHeight);
+        const footroom = lane.clientHeight - contentEnd;
+        const top = headroom / 2;
+        const bottom = contentEnd + (footroom + 5) / 2;
+        // Allow for the rotating silhouette in the gutter and the sheet's shadow.
+        size = Math.min(66, gap * .74, 2 * (headroom - 10), 2 * (footroom - 12));
+        const r = Math.min(9, gap * .06);
+        path = `M ${-size} ${top} H ${x - r} Q ${x} ${top} ${x} ${top + r} V ${bottom - r} Q ${x} ${bottom} ${x + r} ${bottom} H ${width + size}`;
+        length = width + size * 2 + bottom - top;
+      }
+      car.style.visibility = "hidden";
+      if (size < 18 || !CSS.supports("offset-path", 'path("M 0 0 H 1")')) return;
+      car.style.width = size + "px";
+      car.style.offsetPath = 'path("' + path + '")';
+      car.style.visibility = "visible";
+      const duration = Math.max(5500, length / 90 * 1000);
+      drive = car.animate([{ offsetDistance: "0%" }, { offsetDistance: "100%" }], {
+        duration, iterations: Infinity, easing: "linear",
+      });
+      drive.currentTime = (reduced.matches ? .15 : progress) * duration;
+      updatePlayback();
+    }
+    measure();
+    const resize = new ResizeObserver(measure);
+    [spread, cover, sheet].forEach((element) => resize.observe(element));
+    const visibility = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      updatePlayback();
+    });
+    visibility.observe(lane);
+    reduced.addEventListener("change", measure);
+    document.addEventListener("visibilitychange", updatePlayback);
+    return () => {
+      resize.disconnect();
+      visibility.disconnect();
+      reduced.removeEventListener("change", measure);
+      document.removeEventListener("visibilitychange", updatePlayback);
+      drive?.cancel();
+      playback.current = () => {};
+    };
+  }, []);
+
+  return <div ref={track} className="atlas-car-track" aria-hidden="true">
+    <Image ref={sprite} className="atlas-car" src="/atlas-coupe.webp" alt="" width={288} height={144} unoptimized draggable={false} />
+  </div>;
 }
 ```
