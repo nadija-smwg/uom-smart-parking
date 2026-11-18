@@ -20,6 +20,7 @@ Open `http://localhost:3000`. Stop the development server and run `npm run start
 | Auth and roles | Test Campus and Visitor signup, email confirmation, reset, pending approval, each of the six roles, and suspension. In a pilot, verify TOTP for Security Officers and Administrators. |
 | Domain | Rejection of invalid or duplicate vehicles, excluded visitors, concurrent claims, repeated claim and release requests, and closure during an active session. |
 | Live state | A second device updates after park and leave. Offline state blocks writes, and reconnect refreshes before a claim. |
+| Recovery | In a test environment, temporarily fail the campus asset request. Restore it and verify both **Retry campus map** and reconnect load the plan. Interrupt sign-out and verify the screen reports the failure. Retry successfully, then open the protected parking page and verify it requires sign-in. |
 | Map and mobile | Compare the 2D plan to the supplied HTML. Check road and building search, selection and live status, keyboard access, pinch and pan, and the parking action below the map. Review portrait and landscape on Android Chrome and iPhone Safari. Confirm the directions link reaches the Katubedda campus address. |
 | Operations | Verify that drivers receive `403` on officer and admin endpoints, officers can correct a session with a reason and receive `403` on admin endpoints, and admins can assign roles with an audit record. Check closure, reopening, targeted notices, and CSV. |
 | PWA | Install where supported, open from the home screen, disconnect, and check fallback. |
@@ -63,7 +64,7 @@ Review each release in [GitHub Actions](https://github.com/nadija-smwg/uom-smart
 - A regular Chrome test profile passed installability and portrait and landscape checks. The service worker cached only the public campus file, icons, and offline page. The offline fallback and reconnect path passed.
 - The [production deployment](https://uom-smart-parking.vercel.app/) responds over HTTPS. The sign-in redirect, anonymous API denial, PWA manifest, service worker, and campus asset were verified.
 
-The remaining hosted checks cover Supabase's production callback and SMTP, the first confirmed administrator, two-device parking, and physical-phone installation.
+A read-only check on 19 November 2026 found 27 published zones and 440 published spaces. The hosted database had no verified, active administrator profile. The deployment operator needs to designate a confirmed account before staff can use the administration screens. End-to-end production email delivery and callbacks, parking on two physical devices, and phone installation still require verification.
 
 ## Complete source files
 

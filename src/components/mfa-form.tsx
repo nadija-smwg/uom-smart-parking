@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect,useState } from "react";
-import { browserAuth } from "@/lib/supabase-browser";
+import { browserAuth, signOutAndRedirect } from "@/lib/supabase-browser";
 
 export function MfaForm() {
   const [factor,setFactor] = useState("");
@@ -46,7 +46,7 @@ export function MfaForm() {
     }}><label>Authenticator code<input name="code" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required /></label>
     <button disabled={busy}>Verify</button></form>}
     <p role="status">{message}</p><button onClick={async () => {
-      await browserAuth().auth.signOut(); location.assign("/account");
+      setMessage(await signOutAndRedirect("/account"));
     }}>Back to sign in</button>
   </section>;
 }

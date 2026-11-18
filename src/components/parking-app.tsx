@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Bell, CarFront, Compass, History, House, LogOut, Map as MapIcon, MapPin, Search, Shield, SquareParking, UserRound } from "lucide-react";
 import { api, campusTime, mutation } from "@/lib/api";
-import { browserAuth } from "@/lib/supabase-browser";
+import { signOutAndRedirect } from "@/lib/supabase-browser";
 import { campusDirectionsUrl, categories, categoryDisplay, kinds, type Campus, type Category, type MapFocus, type Notice, type Profile, type Rule, type Session,
   type Space, type Vehicle, type Zone } from "@/lib/contracts";
 import { campusFocus, rankEligibleSpaces, zoneFocus, zoneStatus } from "@/lib/map-geometry";
@@ -48,6 +48,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [campus, setCampus] = useState<Campus>();
   const [campusError, setCampusError] = useState(false);
+  const [mapAttempt, setMapAttempt] = useState(0);
   const [vehicleChoice, setVehicleChoice] = useState<string | null>(null);
   const [zoneId, setZoneId] = useState("");
   const [spaceId, setSpaceId] = useState("");
@@ -104,13 +105,15 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   }, [refresh]);
 
   useEffect(() => {
+    if (campus) return;
     const controller = new AbortController();
+    setCampusError(false);
     void fetch("/campus.json", { signal: controller.signal }).then((result) => {
       if (!result.ok) throw new Error("Campus assets unavailable");
       return result.json() as Promise<Campus>;
     }).then(setCampus).catch(() => { if (!controller.signal.aborted) setCampusError(true); });
     return () => controller.abort();
-  }, []);
+  }, [campus, online, mapAttempt]);
   const network = useCallback((connected: boolean) => {
     request.current?.abort();
     setOnline(connected);
@@ -197,8 +200,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
     window.scrollTo(0, 0);
   }
   async function signOut() {
-    await browserAuth().auth.signOut();
-    location.assign("/");
+    setMessage(await signOutAndRedirect("/"));
   }
   function showOnMap(id: string) {
     setVisibleCategories(categories);
@@ -295,7 +297,10 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
       {tab === "Map" && <section className="map-grid">
         {campus ? <MapView campus={campus} zones={visibleZones} spaces={spaces} selected={zoneId} selectedSpace={spaceId} focus={focus}
           onZone={chooseZone} onSpace={chooseSpace} onOverview={overview} onDeselect={deselect} /> :
-          <p className="card">{campusError ? "Campus map assets could not load. Use the zone list." : "Loading campus…"}</p>}
+          <div className="card" role="status">{campusError ? <>
+            <p>Campus map assets could not load. You can still use the zone list.</p>
+            <button disabled={!online} onClick={() => setMapAttempt((attempt) => attempt + 1)}>Retry campus map</button>
+          </> : online ? "Loading campus…" : "Reconnect to load the campus map."}</div>}
         <div className="card mobile-sheet stack">
           <div className="actions">
             <button disabled={!vehicle || !canClaim || !campus} onClick={findNearest}>Nearest free</button>

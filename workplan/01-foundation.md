@@ -960,7 +960,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
 "use client";
 
 import { useEffect,useState } from "react";
-import { browserAuth } from "@/lib/supabase-browser";
+import { browserAuth, signOutAndRedirect } from "@/lib/supabase-browser";
 
 export function MfaForm() {
   const [factor,setFactor] = useState("");
@@ -1005,7 +1005,7 @@ export function MfaForm() {
     }}><label>Authenticator code<input name="code" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required /></label>
     <button disabled={busy}>Verify</button></form>}
     <p role="status">{message}</p><button onClick={async () => {
-      await browserAuth().auth.signOut(); location.assign("/account");
+      setMessage(await signOutAndRedirect("/account"));
     }}>Back to sign in</button>
   </section>;
 }
@@ -1062,6 +1062,19 @@ import { supabaseConfig } from "./supabase-config";
 export function browserAuth() {
   const { url, key } = supabaseConfig();
   return createBrowserClient(url, key);
+}
+
+export async function signOutAndRedirect(path: "/" | "/account"): Promise<string> {
+  try {
+    const { error } = await browserAuth().auth.signOut();
+    if (!error) {
+      window.location.assign(path);
+      return "";
+    }
+  } catch {
+    // A dropped connection can also interrupt the sign-out request.
+  }
+  return "Sign-out could not be confirmed. Check your connection and try again.";
 }
 ```
 
