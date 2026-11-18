@@ -95,7 +95,7 @@ Open [the example local address](http://localhost:3107). For interactive editing
 
 ## Acceptance checks
 
-1. Load the homepage at 1440, 390, and 320 CSS pixels. Check that the sign-in button, zone picker, and step controls fit, and that the page has no horizontal overflow.
+1. At 1280 × 640 and 1366 × 657 CSS pixels, check that the full campus sheet, its zone selector, and the sign-in form actions fit at 100% zoom. On the signed-in map, check the map and side panel sit side by side. Load the homepage at 1440, 390, and 320 CSS pixels. Check that the sign-in button, zone picker, and step controls fit, and that the page has no horizontal overflow.
 2. Starting at Z01, press **Previous zone** to reach Z27 and **Next zone** to return to Z01. Locate **Library**, then choose **Sumanadasa Front Bikes**. The latter shows 74 planned spaces.
 3. Toggle **Trace Main Street**. The line follows the actual road from the main entrance on the supplied plan. Enable the operating system’s reduced-motion setting and toggle it again. All segments should appear together.
 4. Search for a missing zone and check the empty state. Clear the search, filter to **Bicycles**, and locate **Z20 Bicycle Rack**. The zone picker should have focus and show the selected zone.
@@ -775,6 +775,37 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
 .atlas-site .app-nav button[aria-pressed="true"] { background: #ffc6a3; border-color: #b36c48; color: #30281f; }
 .atlas-site .side-rail :focus-visible, .atlas-site .pass-stub :focus-visible { outline-color: #ffdca2; }
 
+/* Leave room for browser chrome on wide, short screens. The campus image and
+   its percentage-based landmarks must always scale as one sheet. */
+@media (min-width: 901px) and (max-height: 58rem) {
+  .atlas-mast { min-height: clamp(3.5rem, 8svh, 4.5rem); }
+  .atlas-spread {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(61%, calc((100svh - 15rem) * 1.377)));
+    gap: clamp(1.5rem, 3.5vw, 4rem);
+    padding-block: clamp(1rem, 3svh, 1.8rem);
+  }
+  .atlas-cover h1 { font-size: clamp(3.7rem, min(8vw, 12svh), 7.5rem); margin-block: .8rem 1rem; }
+  .atlas-actions { margin-block: 1rem; }
+  .atlas-totals { padding-top: .75rem; }
+  .atlas-pass { margin-block: clamp(.75rem, 2.5svh, 1.5rem); }
+  .pass-entry, .pass-stub { padding: clamp(1rem, 2.75svh, 1.8rem); }
+  .atlas-account .auth-card h1 { font-size: clamp(2.5rem, 7svh, 3.75rem); }
+  .atlas-account .auth-title { gap: .35rem; margin-bottom: .85rem; }
+  .atlas-account .auth-card form, .atlas-account .account-options { gap: .45rem; }
+  .atlas-account .account-options-title { padding-top: .45rem; }
+  .app-layout { grid-template-columns: clamp(11.5rem, 15vw, 14.4rem) minmax(0, 1fr); }
+  .app-head { min-height: 3.75rem; margin-bottom: .8rem; }
+  .page-intro { margin-block: 1rem .75rem; }
+  .map-frame { min-height: 15rem; height: min(62svh, calc(100svh - 18rem)); }
+}
+@media (min-width: 1024px) and (max-width: 1440px) and (max-height: 58rem) {
+  .map-grid { grid-template-columns: minmax(0, 1fr) clamp(16rem, 23vw, 20rem); }
+}
+@media (min-width: 901px) and (max-height: 37rem) {
+  .atlas-pass { margin-block: .5rem; }
+  .pass-entry { padding-block: .75rem; }
+  .atlas-account .auth-title { margin-bottom: .5rem; }
+}
 @media (max-width: 900px) {
   .atlas-spread { gap: 1.5rem; grid-template-columns: minmax(0, .76fr) minmax(0, 1.24fr); }
   .atlas-turn { flex-direction: column; }

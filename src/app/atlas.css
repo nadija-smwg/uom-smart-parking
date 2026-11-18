@@ -150,6 +150,37 @@
 .atlas-site .app-nav button[aria-pressed="true"] { background: #ffc6a3; border-color: #b36c48; color: #30281f; }
 .atlas-site .side-rail :focus-visible, .atlas-site .pass-stub :focus-visible { outline-color: #ffdca2; }
 
+/* Leave room for browser chrome on wide, short screens. The campus image and
+   its percentage-based landmarks must always scale as one sheet. */
+@media (min-width: 901px) and (max-height: 58rem) {
+  .atlas-mast { min-height: clamp(3.5rem, 8svh, 4.5rem); }
+  .atlas-spread {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(61%, calc((100svh - 15rem) * 1.377)));
+    gap: clamp(1.5rem, 3.5vw, 4rem);
+    padding-block: clamp(1rem, 3svh, 1.8rem);
+  }
+  .atlas-cover h1 { font-size: clamp(3.7rem, min(8vw, 12svh), 7.5rem); margin-block: .8rem 1rem; }
+  .atlas-actions { margin-block: 1rem; }
+  .atlas-totals { padding-top: .75rem; }
+  .atlas-pass { margin-block: clamp(.75rem, 2.5svh, 1.5rem); }
+  .pass-entry, .pass-stub { padding: clamp(1rem, 2.75svh, 1.8rem); }
+  .atlas-account .auth-card h1 { font-size: clamp(2.5rem, 7svh, 3.75rem); }
+  .atlas-account .auth-title { gap: .35rem; margin-bottom: .85rem; }
+  .atlas-account .auth-card form, .atlas-account .account-options { gap: .45rem; }
+  .atlas-account .account-options-title { padding-top: .45rem; }
+  .app-layout { grid-template-columns: clamp(11.5rem, 15vw, 14.4rem) minmax(0, 1fr); }
+  .app-head { min-height: 3.75rem; margin-bottom: .8rem; }
+  .page-intro { margin-block: 1rem .75rem; }
+  .map-frame { min-height: 15rem; height: min(62svh, calc(100svh - 18rem)); }
+}
+@media (min-width: 1024px) and (max-width: 1440px) and (max-height: 58rem) {
+  .map-grid { grid-template-columns: minmax(0, 1fr) clamp(16rem, 23vw, 20rem); }
+}
+@media (min-width: 901px) and (max-height: 37rem) {
+  .atlas-pass { margin-block: .5rem; }
+  .pass-entry { padding-block: .75rem; }
+  .atlas-account .auth-title { margin-bottom: .5rem; }
+}
 @media (max-width: 900px) {
   .atlas-spread { gap: 1.5rem; grid-template-columns: minmax(0, .76fr) minmax(0, 1.24fr); }
   .atlas-turn { flex-direction: column; }
