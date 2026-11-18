@@ -44,6 +44,15 @@ Vercel Hobby is for eligible personal, non-commercial use. Free Supabase project
 
 **Exit check** Verify the real Vercel URL, email callbacks, two-device parking, role boundaries, and mobile PWA flow. The hosted test is complete once those checks pass on the chosen environment.
 
+## Release verification
+
+- A clean dependency install, the campus tests, TypeScript, the production build, and the isolated PostgreSQL transaction tests passed. The `main` branch passed [GitHub Actions](https://github.com/nadija-smwg/uom-smart-parking/actions/runs/44367144868).
+- Real Supabase Auth running locally delivered confirmation and recovery emails to an isolated Mailpit inbox. Campus and visitor signups, one-use callbacks, pending campus approval, recovery error handling, and sign-in with the new password passed.
+- A regular Chrome test profile passed installability and portrait and landscape checks. The service worker cached only the public campus file, icons, and offline page. The offline fallback and reconnect path passed.
+- The app and workplan are saved in the [public GitHub repository](https://github.com/nadija-smwg/uom-smart-parking). The [Vercel project](https://vercel.com/nadija/uom-smart-parking) is linked and has production-only environment variables. Vercel paused the first deployment at its account identity check.
+
+After the account owner completes Vercel verification, confirm the production HTTPS address, configure the corresponding Supabase Site URL and callback, verify hosted SMTP, and bootstrap the first confirmed administrator. Then complete the two-device parking and physical-phone installation checks.
+
 ## Complete source files
 
 ### `src/app/manifest.ts`
