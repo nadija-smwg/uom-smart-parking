@@ -683,28 +683,29 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
 .atlas-site .atlas-key.orange:hover { background: #ff925b; }
 .atlas-directions, .atlas-index-link { min-height: 44px; font-size: .86rem; font-weight: 750; text-decoration: none; }
 .atlas-index-link:hover, .atlas-directions:hover { text-decoration: underline; text-underline-offset: .25em; }
-.atlas-spread { display: grid; grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr); align-items: center;
+.atlas-spread { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); align-items: center;
   gap: clamp(1.5rem, 4.5vw, 5.5rem); padding: clamp(2rem, 4.2vw, 4.7rem) 0; }
-.atlas-cover { min-width: 0; }
+.atlas-cover { min-width: 0; container-type: inline-size; }
 .atlas-kicker, .atlas-mono, .atlas-sheet-head, .atlas-foot, .atlas-totals dt, .index-code, .index-count, .atlas-legend {
   font-family: var(--mono); font-size: .71rem; line-height: 1.4; letter-spacing: .06em; text-transform: uppercase;
 }
-.atlas-kicker { display: flex; gap: .6rem; align-items: center; font-weight: 700; }
+.atlas-kicker { display: flex; gap: .6rem; align-items: center; font-size: clamp(.87rem, 1.12vw, 1.1rem); font-weight: 700; }
 .atlas-kicker span { width: 1.8rem; height: 3px; background: var(--accent); }
 .atlas-cover h1, .atlas-directory h2, .pass-stub h2, .atlas-account .auth-card h1, .board-head h1 {
   font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: -.035em;
 }
-.atlas-cover h1 { margin-block: 1.05rem 1.35rem; font-size: clamp(5.2rem, 9vw, 10rem); line-height: .81; }
+.atlas-cover h1 { margin-block: 1.05rem 1.35rem; font-size: min(32cqw, clamp(5.9rem, 11vw, 12rem)); line-height: .81; }
 .atlas-word, .atlas-word b { display: block; }
 .atlas-word { overflow: clip; padding-bottom: .06em; }
 .atlas-word b { font-weight: inherit; }
 .atlas-word i, .pass-stub h2 span { color: var(--accent); font-style: normal; }
-.atlas-lead { max-width: 26rem; color: #424c45; font-size: clamp(.96rem, 1.35vw, 1.12rem); }
+.atlas-lead { max-width: 34rem; color: #424c45; font-size: clamp(1.16rem, 1.75vw, 1.55rem); line-height: 1.4; }
 .atlas-actions { flex-wrap: wrap; gap: .4rem 1.3rem; margin-block: 1.5rem; }
+.atlas-site .atlas-actions a { font-size: clamp(1.05rem, 1.35vw, 1.3rem); }
 .atlas-totals { display: flex; gap: clamp(1.4rem, 4.2vw, 5rem); max-width: 26rem; padding-top: 1.05rem; border-top: 1px solid var(--line); }
 .atlas-totals div { display: flex; flex-direction: column-reverse; gap: .1rem; }
-.atlas-totals dt { color: var(--muted); font-size: .64rem; }
-.atlas-totals dd { margin: 0; font: 800 2.65rem/.94 var(--display); font-variant-numeric: tabular-nums; }
+.atlas-totals dt { color: var(--muted); font-size: clamp(.8rem, 1vw, .96rem); }
+.atlas-totals dd { margin: 0; font: 800 clamp(3.15rem, 4.5vw, 4.5rem)/.94 var(--display); font-variant-numeric: tabular-nums; }
 
 .atlas-sheet { color: var(--ink); background: var(--surface); border: 1px solid #293b36; box-shadow: 5px 5px 0 #c7c8b9; }
 .atlas-sheet-head, .atlas-slip { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
@@ -810,7 +811,7 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
     gap: clamp(1.5rem, 3.5vw, 4rem);
     padding-block: clamp(1rem, 3svh, 1.8rem);
   }
-  .atlas-cover h1 { font-size: clamp(3.7rem, min(8vw, 12svh), 7.5rem); margin-block: .8rem 1rem; }
+  .atlas-cover h1 { font-size: min(32cqw, clamp(4.8rem, min(10.6vw, 16svh), 9.5rem)); margin-block: .8rem 1rem; }
   .atlas-actions { margin-block: 1rem; }
   .atlas-totals { padding-top: .75rem; }
   .atlas-pass { margin-block: clamp(.75rem, 2.5svh, 1.5rem); }
@@ -833,7 +834,7 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
   .atlas-account .auth-title { margin-bottom: .5rem; }
 }
 @media (max-width: 900px) {
-  .atlas-spread { gap: 1.5rem; grid-template-columns: minmax(0, .76fr) minmax(0, 1.24fr); }
+  .atlas-spread { gap: 1.5rem; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
   .atlas-turn { flex-direction: column; }
   .atlas-turn button + button { margin: -1px 0 0; }
   .atlas-sheet-head { padding-inline: .6rem; }
@@ -844,12 +845,11 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
   .atlas-mast nav { gap: .5rem; }
   .atlas-mast .atlas-directions { display: none; }
   .atlas-spread { grid-template-columns: 1fr; padding: 1.65rem 0 2rem; gap: 1.35rem; }
-  .atlas-cover h1 { font-size: clamp(2.95rem, 14vw, 6rem); line-height: .86; margin-block: .75rem; }
+  .atlas-cover h1 { display: flex; flex-wrap: wrap; column-gap: .14em; font-size: clamp(3.8rem, 18vw, 7.25rem); line-height: .86; margin-block: .75rem; }
   .atlas-word { display: inline-block; }
-  .atlas-word + .atlas-word { margin-left: .14em; }
-  .atlas-lead { font-size: .94rem; max-width: 30rem; }
+  .atlas-lead { font-size: 1.15rem; max-width: 32rem; }
   .atlas-actions { margin-block: .9rem 0; }
-  .atlas-totals { display: none; }
+  .atlas-totals { margin-top: 1rem; padding-top: .75rem; }
   .atlas-turn { flex-direction: row; }
   .atlas-turn button + button { margin: 0 0 0 -1px; }
   .atlas-slip { gap: .4rem; padding: .5rem; }
