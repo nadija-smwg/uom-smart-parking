@@ -1,4 +1,4 @@
-const CACHE = "uom-parking-public-v2";
+const CACHE = "uom-parking-public-v3";
 const SAFE = ["/campus.json", "/icon-192.png", "/icon-512.png", "/offline.html"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SAFE)));

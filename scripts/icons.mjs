@@ -30,7 +30,7 @@ function icon(size) {
     const col = Math.floor((x-x0)/scale);
     const filled = glyph[row]?.[col] === "1";
     const offset = y*(size*3+1)+1+x*3;
-    const color = filled ? [248,245,233] : [23,59,104];
+    const color = filled ? [32,41,37] : [237,107,55];
     pixels.set(color,offset);
   }
   const info = Buffer.alloc(13);

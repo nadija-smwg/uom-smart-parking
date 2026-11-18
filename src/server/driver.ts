@@ -47,7 +47,7 @@ export async function home(user: Viewer) {
   const [vehicles, sessions, notices, rules] = await Promise.all([
     db<Vehicle[]>`select id,kind,plate,model,color from app.vehicles where user_id=${user.id}
       and archived_at is null order by kind,plate`,
-    db<(Session & { vehicle_id: string })[]>`select q.id,q.vehicle_id,q.started_at,q.ended_at,s.code,z.name as zone_name,v.kind,v.plate
+    db<(Session & { vehicle_id: string; space_id: string })[]>`select q.id,q.vehicle_id,q.space_id,q.started_at,q.ended_at,s.code,z.name as zone_name,v.kind,v.plate
       from app.sessions q join app.spaces s on s.id=q.space_id join app.zones z on z.id=s.zone_id
       join app.vehicles v on v.id=q.vehicle_id where q.user_id=${user.id}
       order by (q.ended_at is null) desc,q.started_at desc limit 100`,

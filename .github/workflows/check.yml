@@ -132,7 +132,11 @@ jobs:
           const get = (path) => fetch(origin + path, { redirect: "manual", signal: AbortSignal.timeout(15_000) });
           const home = await get("/");
           assert.equal(home.status, 200);
-          assert.match(await home.text(), /UoM Smart Parking/);
+          assert.match(await home.text(), /id="atlas-title"/);
+          const plate = await get("/campus-atlas.webp");
+          assert.equal(plate.status, 200);
+          assert.match(plate.headers.get("content-type") ?? "", /image\/webp/);
+          assert.equal(Buffer.from(await plate.arrayBuffer()).toString("ascii", 8, 12), "WEBP");
           const parking = await get("/parking");
           assert.equal(parking.status, 307);
           assert.equal(new URL(parking.headers.get("location"), origin).pathname, "/account");

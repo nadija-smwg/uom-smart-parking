@@ -20,7 +20,7 @@ Open `http://localhost:3000`. Stop the development server and run `npm run start
 | Auth and roles | Test Campus and Visitor signup, email confirmation, reset, pending approval, each of the six roles, and suspension. In a pilot, verify TOTP for Security Officers and Administrators. |
 | Domain | Rejection of invalid or duplicate vehicles, excluded visitors, concurrent claims, repeated claim and release requests, and closure during an active session. |
 | Live state | A second device updates after park and leave. Offline state blocks writes, and reconnect refreshes before a claim. |
-| Map and mobile | Review the daylight campus and selected-zone layout against the [Leeward design brief](01-foundation.md#leeward-design-brief). Verify that the phone bottom sheet leaves the 2D/3D switch and parking action reachable. Check matching 2D/3D selection, touch gestures, keyboard access, landscape, and fallback on Android Chrome and iPhone Safari. Confirm the directions link reaches the Katubedda campus address. |
+| Map and mobile | Compare the 2D plan to the supplied HTML. Check road and building search, selection and live status, keyboard access, pinch and pan, and the parking action below the map. Review portrait and landscape on Android Chrome and iPhone Safari. Confirm the directions link reaches the Katubedda campus address. |
 | Operations | Verify that drivers receive `403` on officer and admin endpoints, officers can correct a session with a reason and receive `403` on admin endpoints, and admins can assign roles with an audit record. Check closure, reopening, targeted notices, and CSV. |
 | PWA | Install where supported, open from the home screen, disconnect, and check fallback. |
 
@@ -78,7 +78,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/", name: "UoM Smart Parking", short_name: "UoM Parking",
     start_url: "/", scope: "/", display: "standalone",
-    background_color: "#f7f4ed", theme_color: "#173b68",
+    background_color: "#f3f0e6", theme_color: "#203a40",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
@@ -109,7 +109,7 @@ export function InstallSupport() {
 <!-- file: public/sw.js -->
 
 ```js
-const CACHE = "uom-parking-public-v2";
+const CACHE = "uom-parking-public-v3";
 const SAFE = ["/campus.json", "/icon-192.png", "/icon-512.png", "/offline.html"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SAFE)));
@@ -153,7 +153,12 @@ self.addEventListener("fetch", (event) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Parking map offline</title>
-  <style>body{background:#f7f4ed;color:#152944;font:18px/1.5 system-ui;margin:0;padding:2rem;max-width:34rem}a{color:#173b68}</style>
+  <style>
+    body { margin: 0; background: #f3f0e6; color: #202925; font: 18px/1.5 system-ui, sans-serif; }
+    main { max-width: 32rem; margin: 10vh auto; padding: 2rem; border-top: .4rem solid #ed6b37; }
+    h1 { margin: 0; font-size: clamp(2.5rem, 8vw, 4rem); line-height: 1; }
+    a { display: inline-block; padding: .65rem 1rem; background: #202925; color: #fffdf3; }
+  </style>
 </head>
 <body><main>
   <h1>You’re offline</h1>
@@ -200,7 +205,7 @@ function icon(size) {
     const col = Math.floor((x-x0)/scale);
     const filled = glyph[row]?.[col] === "1";
     const offset = y*(size*3+1)+1+x*3;
-    const color = filled ? [248,245,233] : [23,59,104];
+    const color = filled ? [32,41,37] : [237,107,55];
     pixels.set(color,offset);
   }
   const info = Buffer.alloc(13);
@@ -220,9 +225,49 @@ for(const size of [192,512]) await writeFile("public/icon-"+size+".png",icon(siz
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { campusFocus, outline, zoneFocus } from "../src/lib/map-geometry.ts";
+import { campusFocus, outline, rankEligibleSpaces, zoneFocus, zoneStatus } from "../src/lib/map-geometry.ts";
 
 const campus = JSON.parse(await readFile(new URL("../data/campus.json",import.meta.url),"utf8"));
+test("2D geometry agrees with every road, building and parking shape in the supplied HTML", async () => {
+  const html = await readFile(new URL("../docs/UoM Smart Parking – 3D Campus Map-4.html", import.meta.url), "utf8");
+  function rows(name) {
+    const match = html.match(new RegExp("const " + name + "=(\\[[^;]+\\]);"));
+    assert.ok(match, name);
+    return JSON.parse(match[1].replaceAll("'", '"'));
+  }
+  assert.deepEqual(campus.buildings, rows("BD"));
+  assert.deepEqual(campus.roads, rows("ROADS"));
+  const category = { car: "cars", bike: "motorcycles", cycle: "bicycles", uni: "university", other: "other" };
+  const expected = new Map();
+  for (const [type, name, x, y, w, h, r] of rows("PB"))
+    expected.set(name, { category: category[type], geometry: { type: "box", x, y, w, h, r } });
+  for (const [type, name, points, w] of rows("PS"))
+    expected.set(name, { category: category[type], geometry: { type: "strip", points, w } });
+  assert.equal(expected.size, campus.zones.length);
+  for (const { name, category, geometry } of campus.zones) {
+    assert.deepEqual({ category, geometry }, expected.get(name), name);
+    expected.delete(name);
+  }
+  assert.equal(expected.size, 0);
+});
+
+test("availability pins handle the HTML filling threshold and operational closures", () => {
+  const open = { open: true, inventory: 10, occupied: 6, available: 4 };
+  assert.equal(zoneStatus(open).label, "Available");
+  assert.equal(zoneStatus({ ...open, available: 3 }).label, "Filling");
+  assert.equal(zoneStatus({ ...open, available: 0, occupied: 10 }).label, "Full");
+  assert.equal(zoneStatus({ ...open, available: 0 }).label, "Unavailable");
+  assert.equal(zoneStatus({ ...open, open: false }).label, "Closed");
+  assert.equal(zoneStatus({ ...open, inventory: 0, available: 0, occupied: 0 }).label, "No inventory");
+});
+
+test("nearest free and availability ranking exclude ineligible and occupied spaces", () => {
+  const space = { code: "A", zone_id: "west", x: 2, y: 0, available: true, eligible: true };
+  const rows = [space, { ...space, x: 0, code: "B", eligible: false }, { ...space, x: 1, code: "C", available: false },
+    { ...space, x: 4, code: "D", zone_id: "east" }, { ...space, x: 5, code: "E", zone_id: "east" }];
+  assert.deepEqual(rankEligibleSpaces(rows, { x: 0, y: 0 }).map(s => s.code), ["A", "D", "E"]);
+  assert.deepEqual(rankEligibleSpaces(rows, { x: 0, y: 0 }, true).map(s => s.code), ["D", "E", "A"]);
+});
 test("verified transcription of the planning reference", () => {
   assert.equal(campus.buildings.length,30);
   assert.equal(campus.roads.length,16);
@@ -462,7 +507,11 @@ jobs:
           const get = (path) => fetch(origin + path, { redirect: "manual", signal: AbortSignal.timeout(15_000) });
           const home = await get("/");
           assert.equal(home.status, 200);
-          assert.match(await home.text(), /UoM Smart Parking/);
+          assert.match(await home.text(), /id="atlas-title"/);
+          const plate = await get("/campus-atlas.webp");
+          assert.equal(plate.status, 200);
+          assert.match(plate.headers.get("content-type") ?? "", /image\/webp/);
+          assert.equal(Buffer.from(await plate.arrayBuffer()).toString("ascii", 8, 12), "WEBP");
           const parking = await get("/parking");
           assert.equal(parking.status, 307);
           assert.equal(new URL(parking.headers.get("location"), origin).pathname, "/account");

@@ -1,6 +1,6 @@
-# Phase 3. Campus geometry and responsive 2D/3D maps
+# Phase 3. Campus geometry and responsive 2D map
 
-The bundled fixture transcribes 30 buildings, 16 roads, and 27 proposed zones from the supplied diagram and project brief. The demo creates 440 approximate spaces and explicit sample access rules. Playground Car Park and Mill Road Bike Bay permit visitors in the relevant vehicle categories for testing. The campus references below were checked on 18 November 2026. The inventory, eligibility, and space placements still need campus verification.
+The bundled fixture transcribes the playground, 30 buildings, 16 roads, and 27 proposed zones from the campus HTML. The demo creates 440 approximate spaces and sample access rules from the project brief. Playground Car Park and Mill Road Bike Bay permit visitors in the relevant vehicle categories for testing. The campus references below were checked on 18 November 2026. The inventory, eligibility, and space placements still need campus verification. [Supplied campus HTML](<../docs/UoM Smart Parking – 3D Campus Map-4.html>)
 
 ## Public campus references
 
@@ -13,7 +13,7 @@ The bundled fixture transcribes 30 buildings, 16 roads, and 27 proposed zones fr
 
 The R4TLI map is for a specific event and its parking markers show general locations. Current gate access, permits, stall counts, and the numbered zones require separate verification. The named `UoM_Parking_Map_A3-2.pdf` was not located in the public results reviewed. The supplied diagram remains the source for local map geometry. Use the schematic entrance and landmark choices for ranking, and the Google Maps link for directions to the campus address. For pilot geometry, use a UoM-approved survey or appropriately licensed spatial data with attribution and an on-site check. [OpenStreetMap data licensing](https://www.openstreetmap.org/copyright)
 
-Three.js presents the Leeward-inspired daylight architectural view. Leaflet renders the same campus geometry in local coordinates. The app defaults to 3D and falls back to 2D when WebGL fails. Both views fit the current focus to the screen and share the selected zone, selected space, status colors, and theme. Use **Overview** to frame the campus again. Search for a zone or building to focus it, or choose a space with the keyboard from the selected zone's details. The zone list works independently of the map. On touch screens, pinch to zoom and use two fingers to pan in 3D. In 2D, drag to pan. [Leeward design brief](01-foundation.md#leeward-design-brief) · [Three.js OrbitControls](https://threejs.org/docs/pages/OrbitControls.html) · [Leaflet local map coordinates](https://leafletjs.com/examples-v1/crs-simple/crs-simple.html)
+Leaflet draws the HTML's top-down campus layout in local coordinates. The campus boundary, playing field, road widths, and building footprints are rendered beneath the live zone and space layers. Use **Overview** to frame the campus again. Search for a zone, building, or road, or choose a space with the keyboard from the selected zone's details. On touch screens, drag to pan and pinch to zoom. The zone list works independently of the map. [Leeward design brief](01-foundation.md#leeward-design-brief) · [Leaflet local map coordinates](https://leafletjs.com/examples-v1/crs-simple/crs-simple.html)
 
 Set `APP_ENV=demo` and confirm that `DATABASE_URL` points to the demo project's restricted runtime login. Enable `CONFIRM_DEMO_SEED` for the seed command. Seeding requires empty zone inventory. `npm run assets` generates the public campus asset and icons. The development and build commands run it automatically.
 
@@ -31,11 +31,15 @@ The shared map shows campus inventory. **Find Parking** recommends spaces based 
 
 For the pilot, record the drawing or survey version, trusted coordinate source, check date, and verifier for each zone. Match several identifiable control points across the campus, then check separate points on site before enabling position-based directions. Record usable gates, permitted travel directions, and signed space counts with Campus Security. Keep web-source links with this evidence so later edits can be traced.
 
-**Exit check** Verify both views agree on a selected space, its zone, category, and status. Try pinch and pan on a narrow touchscreen, and select an available space with the keyboard list. Confirm the public directions link opens the UoM campus address and passes no parking or account data to Google Maps.
+**Exit check** Verify that the campus plan matches the HTML and that the map and zone list agree on the selected space and its status. Try pinch and pan on a narrow touchscreen, and select an available space with the keyboard list. Confirm the public directions link opens the UoM campus address and passes no parking or account data to Google Maps.
 
 ## Map verification
 
-The production build and three campus tests passed. Chrome rendered the campus at desktop size and in 360 px and 320 px mobile viewports. A local preview used the hosted demo inventory and a test profile. The keyboard selected a zone and space, both views retained the selection and status, and touch emulation verified pinch and pan. Chrome switched to 2D with WebGL disabled. The Google Maps link opened the university address with only the Maps API version and destination in the URL.
+The feature-by-feature comparison covers simulated traffic, occupancy pins, nearest free, saved spots, notices, and 3D presentation differences. [HTML feature audit](../docs/campus-map-feature-audit.md)
+
+The HTML and bundled fixture match on campus bounds, playground coordinates, all 30 building footprints, all 16 roads, and all 27 zone geometries. The Google Maps link uses the university address and the Maps API version.
+
+The production build and campus tests passed. Chrome rendered the 2D plan with WebGL disabled at desktop and phone widths, including 320 CSS pixels and phone landscape. Browser checks covered touch pan and pinch, road and building search, category filtering, keyboard selection, map taps, day and night themes, and labels. Two signed-in drivers verified the claim and release flow against an isolated database with the demo inventory.
 
 Physical phone testing and signed-in testing against the hosted API remain for the deployment checklist.
 
@@ -292,7 +296,27 @@ export const categoryDisplay: Record<Category, { label: string; color: string }>
 <!-- file: src/lib/map-geometry.ts -->
 
 ```ts
-import type { Geometry, MapFocus, Point, Space } from "./contracts";
+import type { Geometry, MapFocus, Point, Space, Zone } from "./contracts";
+
+export function zoneStatus(zone: Pick<Zone, "open" | "inventory" | "available" | "occupied">) {
+  if (!zone.open) return { label: "Closed", color: "#637080" };
+  if (!zone.inventory) return { label: "No inventory", color: "#637080" };
+  if (!zone.available) return zone.occupied === zone.inventory
+    ? { label: "Full", color: "#b4413d" } : { label: "Unavailable", color: "#637080" };
+  if (zone.available / zone.inventory < .4) return { label: "Filling", color: "#b06b08" };
+  return { label: "Available", color: "#24784c" };
+}
+
+export function rankEligibleSpaces(spaces: Space[], origin?: { x: number; y: number }, byAvailability = false) {
+  const eligible = spaces.filter((space) => space.available && space.eligible);
+  const counts = new Map<string, number>();
+  if (byAvailability) {
+    for (const space of eligible) counts.set(space.zone_id, (counts.get(space.zone_id) ?? 0) + 1);
+  }
+  const distance = (space: Space) => origin ? Math.hypot(space.x - origin.x, space.y - origin.y) : 0;
+  return eligible.sort((a, b) => (counts.get(b.zone_id) ?? 0) - (counts.get(a.zone_id) ?? 0)
+    || distance(a) - distance(b) || a.code.localeCompare(b.code));
+}
 
 export function spaceColor(space: Space): string {
   if (space.occupied) return "#ae413d";
@@ -333,36 +357,33 @@ export function zoneFocus(geometry: Geometry): MapFocus {
 "use client";
 
 import dynamic from "next/dynamic";
+import { CarFront, Focus, Moon, Tag } from "lucide-react";
 import { useState } from "react";
 import type { Campus, MapFocus, Space, Zone } from "@/lib/contracts";
 
-const View2D = dynamic(() => import("./map-2d"), { ssr: false, loading: () => <p className="card">Loading map…</p> });
-const View3D = dynamic(() => import("./map-3d"), { ssr: false, loading: () => <p className="card">Loading 3D campus…</p> });
+const Map2D = dynamic(() => import("./map-2d"), { ssr: false, loading: () => <p className="card" role="status">Loading map…</p> });
 
 export type MapProps = {
   campus: Campus; zones: Zone[]; spaces: Space[]; selected: string; selectedSpace: string; focus: MapFocus | null;
-  night: boolean; labels: boolean; onZone: (id: string) => void; onSpace: (id: string) => void;
+  night: boolean; labels: boolean; traffic: boolean;
+  onZone: (id: string) => void; onSpace: (id: string) => void; onDeselect: () => void;
 };
 
-export function MapView({ onOverview, ...props }: Omit<MapProps, "night" | "labels"> & { onOverview: () => void }) {
-  const [mode, setMode] = useState<"3d" | "2d">("3d");
-  const [failed, setFailed] = useState(false);
+export function MapView({ onOverview, ...props }: Omit<MapProps, "night" | "labels" | "traffic"> & { onOverview: () => void }) {
   const [night, setNight] = useState(false);
   const [labels, setLabels] = useState(true);
-  return <div>
+  const [traffic, setTraffic] = useState(false);
+  return <div className="card map-card">
     <div className="map-tools" role="group" aria-label="Map controls">
-      <button aria-pressed={mode === "3d" && !failed} disabled={failed} onClick={() => setMode("3d")}>3D campus</button>
-      <button aria-pressed={mode === "2d" || failed} onClick={() => setMode("2d")}>2D map</button>
-      <button aria-pressed={night} onClick={() => setNight(!night)}>Night</button>
-      <button aria-pressed={labels} onClick={() => setLabels(!labels)}>Labels</button>
-      <button onClick={onOverview}>Overview</button>
+      <button aria-pressed={night} onClick={() => setNight(!night)}><Moon size={16} aria-hidden="true" /> Night</button>
+      <button aria-pressed={traffic} onClick={() => setTraffic(!traffic)}><CarFront size={16} aria-hidden="true" /> Demo traffic</button>
+      <button aria-pressed={labels} onClick={() => setLabels(!labels)}><Tag size={16} aria-hidden="true" /> Labels</button>
+      <button onClick={onOverview}><Focus size={16} aria-hidden="true" /> Overview</button>
     </div>
-    {failed && <p role="status">Using the 2D view because 3D is unavailable on this device.</p>}
     <div className="map-frame" role="group" aria-label="University campus map">
-      {mode === "3d" && !failed
-        ? <View3D {...props} night={night} labels={labels} onFailure={() => setFailed(true)} />
-        : <View2D {...props} night={night} labels={labels} />}
+      <Map2D {...props} night={night} labels={labels} traffic={traffic} />
     </div>
+    <p className="map-hint">Drag to pan · Pinch or scroll to zoom{traffic && " · Traffic animation is simulated."}</p>
   </div>;
 }
 ```
@@ -378,11 +399,21 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { MapFocus, Point } from "@/lib/contracts";
 import { categoryDisplay } from "@/lib/contracts";
-import { campusFocus, outline, spaceColor } from "@/lib/map-geometry";
+import { campusFocus, outline, spaceColor, zoneFocus, zoneStatus } from "@/lib/map-geometry";
 import type { MapProps } from "./map-view";
 
 const xy = ([x, y]: Point): L.LatLngTuple => [-y, x];
 const safeText = (label: string) => Object.assign(document.createElement("span"), { textContent: label });
+const basePane = "campus-base";
+const landmarkLabels = new Set(["Sumanadasa Building", "Faculty of IT", "Library"]);
+const dayColors = {
+  campus: "#f0ecdd", boundary: "#b5baa4", field: "#a3bf88", fieldEdge: "#819969",
+  road: "#fffdf4", roadEdge: "#bbb59f", centerline: "#c0a76a", building: "#d3c9b7", buildingEdge: "#ab9b85",
+};
+const nightColors = {
+  campus: "#24324b", boundary: "#536583", field: "#326846", fieldEdge: "#61916d",
+  road: "#53617a", roadEdge: "#77869c", centerline: "#aabbd2", building: "#495a75", buildingEdge: "#8b9cb4",
+};
 
 function fit(map: L.Map, { point: [x, y], size: [width, height] }: MapFocus) {
   map.fitBounds([xy([x - width / 2, y - height / 2]), xy([x + width / 2, y + height / 2])],
@@ -392,16 +423,23 @@ function fit(map: L.Map, { point: [x, y], size: [width, height] }: MapFocus) {
 export default function Map2D(props: MapProps) {
   const node = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const { campus, zones, spaces, selected, selectedSpace, focus, night, labels, onZone, onSpace } = props;
+  const { campus, zones, spaces, selected, selectedSpace, focus, night, labels, traffic, onZone, onSpace, onDeselect } = props;
   const target = useRef<MapFocus>(focus ?? campusFocus(campus.size));
   useEffect(() => {
     if (!node.current) return;
     const instance = L.map(node.current, {
       crs: L.CRS.Simple, minZoom: -4, maxZoom: 4, zoomSnap: 0.25,
       trackResize: false,
-      // Leaflet's zoom transition can finish after switching this view out.
+      // Theme and label changes replace the base layers together.
+      fadeAnimation: false,
+      // The Map tab can unmount the renderer during a zoom.
       zoomAnimation: false,
     });
+    instance.createPane(basePane).style.zIndex = "350";
+    const trafficPane = instance.createPane("campus-traffic");
+    trafficPane.style.zIndex = "375";
+    trafficPane.style.pointerEvents = "none";
+    instance.createPane("zone-status").style.zIndex = "405";
     map.current = instance;
     fit(instance, target.current);
     const observer = new ResizeObserver(() => {
@@ -420,330 +458,144 @@ export default function Map2D(props: MapProps) {
   useEffect(() => {
     const instance = map.current;
     if (!instance) return;
+    instance.on("click", onDeselect);
+    return () => { instance.off("click", onDeselect); };
+  }, [onDeselect]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !traffic) return;
+    const layer = L.layerGroup().addTo(instance);
+    for (const [, width, points] of campus.roads) {
+      if (width < 6 || points.length < 2) continue;
+      for (const direction of [1, -1]) {
+        const lane = points.map(([x, y], i) => {
+          const [ax, ay] = points[Math.max(0, i - 1)];
+          const [bx, by] = points[Math.min(points.length - 1, i + 1)];
+          const offset = direction * width * .24 / (Math.hypot(bx - ax, by - ay) || 1);
+          return xy([x - (by - ay) * offset, y + (bx - ax) * offset]);
+        });
+        L.polyline(direction > 0 ? lane : lane.reverse(), {
+          pane: "campus-traffic", interactive: false, color: direction > 0 ? "#cc5c2e" : "#237f91",
+          weight: 3, opacity: 1, dashArray: "6 66", lineCap: "round", className: "traffic-lane",
+        }).addTo(layer);
+      }
+    }
+    return () => { layer.remove(); };
+  }, [campus.roads, traffic]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
     const layout = L.layerGroup().addTo(instance);
+    const colors = night ? nightColors : dayColors;
+    L.rectangle([xy([0, 0]), xy(campus.size)], {
+      pane: basePane, color: colors.boundary, weight: 1, fillColor: colors.campus, fillOpacity: 1, interactive: false,
+    }).addTo(layout);
+
     const [px, py, rx, ry] = campus.playground;
-    const yard = Array.from({ length: 36 }, (_, i) => {
-      const angle = i * 2 * Math.PI / 36;
+    const yard = Array.from({ length: 48 }, (_, i) => {
+      const angle = i * 2 * Math.PI / 48;
       return xy([px + Math.cos(angle) * rx, py + Math.sin(angle) * ry]);
     });
-    L.polygon(yard, { color: "#789263", fillColor: "#8ea878", fillOpacity: 1, interactive: false }).addTo(layout);
-    for (const [name, width, points] of campus.roads) {
-      const road = L.polyline(points.map(xy), { color: night ? "#8294a7" : "#a59f92", weight: width / 2 });
-      if (labels) road.bindTooltip(safeText(name));
-      road.addTo(layout);
-    }
+    const field = L.polygon(yard, {
+      pane: basePane, color: colors.fieldEdge, weight: 1, fillColor: colors.field, fillOpacity: 1, interactive: false,
+    }).addTo(layout);
+    if (labels) field.bindTooltip(safeText("Playground"), { permanent: true, direction: "center", className: "map-landmark", opacity: 1 });
+
+    const roads = campus.roads.map(([name, width, points]) => {
+      const path = points.map(xy);
+      const edge = L.polyline(path, { pane: basePane, color: colors.roadEdge, interactive: false }).addTo(layout);
+      const road = L.polyline(path, { pane: basePane, color: colors.road }).addTo(layout);
+      const centerline = L.polyline(path, {
+        pane: basePane, color: colors.centerline, weight: 1, interactive: false,
+      }).addTo(layout);
+      if (labels) road.bindTooltip(safeText(name), { sticky: true });
+      return { width, edge, road, centerline };
+    });
+    const fitRoadWidths = () => {
+      const scale = instance.getZoomScale(instance.getZoom(), 0);
+      for (const { width, edge, road, centerline } of roads) {
+        const weight = Math.max(2, width * scale);
+        edge.setStyle({ weight: weight + 1.5 });
+        road.setStyle({ weight });
+        centerline.setStyle({ opacity: weight > 3 ? .75 : 0, weight: Math.max(.65, .9 * scale) });
+      }
+    };
+    fitRoadWidths();
+    instance.on("zoomend", fitRoadWidths);
+
+    const secondaryLabels: { building: L.Rectangle; name: string }[] = [];
     for (const [name, x, y, w, h, , visible] of campus.buildings) {
       const building = L.rectangle([xy([x, y]), xy([x + w, y + h])], {
-        color: night ? "#5b7290" : "#ad9d87", weight: 1,
-        fillColor: night ? "#788ca2" : "#e9d9c3", fillOpacity: 1,
-      });
-      if (labels && visible) building.bindTooltip(safeText(name));
-      building.addTo(layout);
+        pane: basePane, color: colors.buildingEdge, weight: 1, fillColor: colors.building, fillOpacity: 1,
+      }).addTo(layout);
+      if (!labels || !visible) continue;
+      if (landmarkLabels.has(name)) {
+        building.bindTooltip(safeText(name), { permanent: true, direction: "center", className: "map-landmark", opacity: 1 });
+      } else secondaryLabels.push({ building, name });
     }
-    return () => { layout.remove(); };
+    let detailed: boolean | undefined;
+    const updateLabels = () => {
+      const showNames = instance.getZoom() >= 1;
+      if (detailed === showNames) return;
+      detailed = showNames;
+      for (const { building, name } of secondaryLabels) {
+        building.unbindTooltip().bindTooltip(safeText(name), showNames
+          ? { permanent: true, direction: "center", className: "map-detail-label", opacity: 1 }
+          : { sticky: true });
+      }
+    };
+    updateLabels();
+    instance.on("zoomend", updateLabels);
+    return () => { instance.off("zoomend", fitRoadWidths); instance.off("zoomend", updateLabels); layout.remove(); };
   }, [campus, night, labels]);
 
   useEffect(() => {
     const instance = map.current;
     if (!instance) return;
     const parking = L.layerGroup().addTo(instance);
+    const strips: { path: L.Path; width: number; selected: boolean }[] = [];
     for (const zone of zones) {
       const color = categoryDisplay[zone.category].color;
       const active = zone.id === selected;
-      const style = { color, weight: active ? 5 : 3, opacity: zone.open ? 1 : .45 };
-      const shape = zone.geometry.type === "strip"
-        ? L.polyline(zone.geometry.points.map(xy), { ...style, weight: Math.max(zone.geometry.w, 7) + (active ? 3 : 0) })
-        : L.polygon(outline(zone.geometry).map(xy), { ...style, fillOpacity: zone.open ? .6 : .2 });
+      const style = { color, weight: active ? 5 : 3, opacity: zone.open ? 1 : .45, bubblingMouseEvents: false };
+      const { geometry } = zone;
+      const shape = geometry.type === "strip"
+        ? L.polyline(geometry.points.map(xy), { ...style, lineCap: "butt" })
+        : L.polygon(outline(geometry).map(xy), { ...style, fillOpacity: zone.open ? .6 : .2 });
+      if (geometry.type === "strip") strips.push({ path: shape, width: geometry.w, selected: active });
       shape.bindTooltip(safeText(zone.code + " · " + zone.name)).on("click", () => onZone(zone.id)).addTo(parking);
+      const status = zoneStatus(zone);
+      if (!active) {
+        L.circleMarker(xy(zoneFocus(geometry).point), {
+          pane: "zone-status", radius: 5, color: "#fffdf4", weight: 1.5, fillColor: status.color, fillOpacity: 1,
+          bubblingMouseEvents: false,
+        }).bindTooltip(safeText(zone.name + " · " + status.label + " · " + zone.available + " open"))
+          .on("click", () => onZone(zone.id)).addTo(parking);
+      }
     }
+    const fitStripWidths = () => {
+      const scale = instance.getZoomScale(instance.getZoom(), 0);
+      for (const strip of strips) strip.path.setStyle({ weight: Math.max(4, strip.width * scale) + (strip.selected ? 2 : 0) });
+    };
+    fitStripWidths();
+    instance.on("zoomend", fitStripWidths);
     let activeMarker: L.CircleMarker | undefined;
     for (const space of spaces.filter((row) => row.zone_id === selected)) {
       const color = spaceColor(space);
       const active = space.id === selectedSpace;
       const marker = L.circleMarker(xy([space.x, space.y]), {
         color: active ? "#fff5d1" : color, fillColor: color, fillOpacity: 1, radius: active ? 6 : 4, weight: 2,
+        bubblingMouseEvents: false,
       })
         .bindTooltip(safeText(space.code)).on("click", () => onSpace(space.id)).addTo(parking);
       if (active) activeMarker = marker;
     }
     activeMarker?.bringToFront();
-    return () => { parking.remove(); };
+    return () => { instance.off("zoomend", fitStripWidths); parking.remove(); };
   }, [zones, spaces, selected, selectedSpace, onZone, onSpace]);
 
-  return <div ref={node} className="map-leaflet" style={{ background: night ? "#293949" : "#e0e8d4" }} />;
-}
-```
-
-### `src/components/map-3d.tsx`
-
-<!-- file: src/components/map-3d.tsx -->
-
-```tsx
-"use client";
-
-import * as T from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { useEffect, useRef } from "react";
-import { categoryDisplay, type MapFocus, type Point } from "@/lib/contracts";
-import { campusFocus, outline, spaceColor } from "@/lib/map-geometry";
-import type { MapProps } from "./map-view";
-
-type View = {
-  scene: T.Scene; content: T.Group; parking: T.Group; signs: T.Group;
-  fit: (target: MapFocus) => void;
-  draw: () => void;
-};
-
-function clear(group: T.Group) {
-  group.traverse((object) => {
-    if (object instanceof T.Mesh || object instanceof T.Sprite) {
-      if (object instanceof T.Mesh) object.geometry.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) { material.map?.dispose(); material.dispose(); }
-    }
-  });
-  group.clear();
-}
-
-const at = ([x, z]: Point, y = 0) => new T.Vector3(x, y, z);
-const overviewAngle = new T.Vector3(.5, 1, 1).normalize();
-const detailAngle = new T.Vector3(.2, 1, .55).normalize();
-const overviewLabels = new Set(["Sumanadasa Building", "Faculty of IT", "Library"]);
-
-function fitCamera(camera: T.PerspectiveCamera, controls: OrbitControls, { point, size }: MapFocus) {
-  const [width, depth] = size;
-  const angle = Math.max(width, depth) > 500 ? overviewAngle : detailAngle;
-  const right = new T.Vector3().crossVectors(camera.up, angle).normalize();
-  const up = new T.Vector3().crossVectors(angle, right);
-  const vertical = Math.tan(T.MathUtils.degToRad(camera.fov / 2)) * .86;
-  const horizontal = vertical * camera.aspect;
-  let distance = controls.minDistance;
-  // Every corner must fit at its own depth in the perspective projection.
-  for (const x of [-width / 2, width / 2]) {
-    for (const z of [-depth / 2, depth / 2]) {
-      const corner = new T.Vector3(x, 0, z);
-      const projected = Math.max(Math.abs(corner.dot(right)) / horizontal, Math.abs(corner.dot(up)) / vertical);
-      distance = Math.max(distance, corner.dot(angle) + projected);
-    }
-  }
-  controls.maxDistance = Math.max(3000, distance * 1.25);
-  camera.far = controls.maxDistance + 2200;
-  camera.updateProjectionMatrix();
-  controls.target.copy(at(point));
-  camera.position.copy(controls.target).addScaledVector(angle, distance);
-  controls.update();
-}
-
-function slab(group: T.Group, x: number, z: number, w: number, d: number, height: number, fill: string, ground = 0) {
-  const mesh = new T.Mesh(new T.BoxGeometry(w, height, d), new T.MeshLambertMaterial({ color: fill }));
-  mesh.position.copy(at([x, z], ground + height / 2));
-  group.add(mesh);
-  return mesh;
-}
-function strip(group: T.Group, points: Point[], width: number, color: string, y: number) {
-  return points.slice(1).map((b, index) => {
-    const a = points[index];
-    const dx = b[0] - a[0];
-    const dz = b[1] - a[1];
-    const mesh = slab(group, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.hypot(dx, dz), width, 1, color, y);
-    mesh.rotation.y = -Math.atan2(dz, dx);
-    return mesh;
-  });
-}
-
-function label(text: string, point: Point, y: number) {
-  const surface = document.createElement("canvas");
-  const ctx = surface.getContext("2d");
-  if (!ctx) return null;
-  const font = "600 24px system-ui";
-  ctx.font = font;
-  surface.width = Math.ceil(ctx.measureText(text).width) + 20;
-  surface.height = 36;
-  ctx.fillStyle = "#f8f5e9";
-  ctx.fillRect(0, 0, surface.width, surface.height);
-  ctx.font = font;
-  ctx.fillStyle = "#152944";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, surface.width / 2, surface.height / 2);
-  const sprite = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(surface), sizeAttenuation: false }));
-  sprite.center.set(.5, 0);
-  sprite.position.copy(at(point, y));
-  sprite.userData.aspect = surface.width / surface.height;
-  sprite.userData.landmark = overviewLabels.has(text);
-  return sprite;
-}
-
-export default function Map3D(props: MapProps & { onFailure: () => void }) {
-  const host = useRef<HTMLDivElement>(null);
-  const view = useRef<View | null>(null);
-  const latest = useRef(props);
-  latest.current = props;
-  const { campus, zones, spaces, selected, selectedSpace, focus, night, labels } = props;
-
-  useEffect(() => {
-    const node = host.current;
-    if (!node) return;
-    let renderer: T.WebGLRenderer;
-    try { renderer = new T.WebGLRenderer({ antialias: true, powerPreference: "low-power" }); }
-    catch { latest.current.onFailure(); return; }
-
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    node.append(renderer.domElement);
-    const scene = new T.Scene();
-    const camera = new T.PerspectiveCamera(47, 1, 5, 5500);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.maxPolarAngle = Math.PI * .48;
-    controls.minDistance = 60;
-
-    const content = new T.Group();
-    const parking = new T.Group();
-    const signs = new T.Group();
-    const sky = new T.HemisphereLight("#f9efd9", "#698264", 2.3);
-    const sun = new T.DirectionalLight("#fff5dd", 2.0);
-    sun.position.set(111, 750, 671);
-    sun.target.position.set(511, 0, 371);
-    scene.add(sun.target);
-    scene.add(content, parking, signs, sky, sun);
-    const draw = () => {
-      const showLocalLabels = camera.position.distanceTo(controls.target) < 740;
-      const labelHeight = 30 * Math.tan(T.MathUtils.degToRad(camera.fov / 2)) / Math.max(node.clientHeight, 1);
-      for (const sign of signs.children) {
-        sign.visible = showLocalLabels || sign.userData.landmark;
-        sign.scale.set(labelHeight * sign.userData.aspect, labelHeight, 1);
-      }
-      renderer.render(scene, camera);
-    };
-    const fit = (target: MapFocus) => {
-      fitCamera(camera, controls, target);
-      draw();
-    };
-    view.current = { scene, content, parking, signs, fit, draw };
-    controls.addEventListener("change", draw);
-
-    const resizeViewport = () => {
-      const { clientWidth: width, clientHeight: height } = node;
-      if (!width || !height) return;
-      camera.aspect = width / height;
-      renderer.setSize(width, height, false);
-      fit(latest.current.focus ?? campusFocus(latest.current.campus.size));
-    };
-    resizeViewport();
-    const resize = new ResizeObserver(resizeViewport);
-    resize.observe(node);
-    const canvas = renderer.domElement;
-    const lost = (event: Event) => { event.preventDefault(); latest.current.onFailure(); };
-    canvas.addEventListener("webglcontextlost", lost);
-    const ray = new T.Raycaster();
-    let start: [number, number] | null = null;
-    const down = (event: PointerEvent) => {
-      start = event.isPrimary && event.button === 0 ? [event.clientX, event.clientY] : null;
-    };
-    const up = (event: PointerEvent) => {
-      const origin = start;
-      start = null;
-      if (!origin || Math.hypot(event.clientX - origin[0], event.clientY - origin[1]) > 7) return;
-      const box = canvas.getBoundingClientRect();
-      ray.setFromCamera(new T.Vector2((event.clientX - box.left) / box.width * 2 - 1,
-        1 - (event.clientY - box.top) / box.height * 2), camera);
-      const hit = ray.intersectObjects(parking.children)[0]?.object.userData;
-      if (hit?.space) latest.current.onSpace(hit.space);
-      else if (hit?.zone) latest.current.onZone(hit.zone);
-    };
-    const cancel = () => { start = null; };
-    canvas.addEventListener("pointerdown", down);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", cancel);
-    return () => {
-      resize.disconnect();
-      canvas.removeEventListener("pointerdown", down);
-      canvas.removeEventListener("pointerup", up);
-      canvas.removeEventListener("pointercancel", cancel);
-      canvas.removeEventListener("webglcontextlost", lost);
-      controls.dispose();
-      clear(content);
-      clear(parking);
-      clear(signs);
-      renderer.dispose();
-      canvas.remove();
-      view.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const v = view.current;
-    if (!v) return;
-    const g = v.content;
-    clear(g);
-    clear(v.signs);
-    v.scene.background = new T.Color(night ? "#17283c" : "#dde9d5");
-    const [width, depth] = campus.size;
-    slab(g, width / 2, depth / 2, width, depth, 7, night ? "#344858" : "#b5c6a6", -7);
-    const [px, py, rx, ry] = campus.playground;
-    const field = new T.Mesh(new T.CylinderGeometry(1, 1, 1, 48), new T.MeshLambertMaterial({ color: night ? "#436c55" : "#80a268" }));
-    field.position.copy(at([px, py], .55));
-    field.scale.set(rx, 1, ry);
-    g.add(field);
-    for (const [name, width, points] of campus.roads) {
-      strip(g, points, width, night ? "#64768b" : "#ada79a", 1);
-      if (labels && width >= 10) {
-        const roadLabel = label(name, points[Math.floor(points.length / 2)], 4);
-        if (roadLabel) v.signs.add(roadLabel);
-      }
-    }
-    for (const [name, x, y, w, h, height, visible] of campus.buildings) {
-      slab(g, x + w / 2, y + h / 2, w, h, height, night ? "#6f839d" : "#e3cdb1");
-      if (labels && visible) {
-        const buildingLabel = label(name, [x + w / 2, y + h / 2], height + 10);
-        if (buildingLabel) v.signs.add(buildingLabel);
-      }
-    }
-    v.draw();
-  }, [campus, night, labels]);
-
-  useEffect(() => {
-    const v = view.current;
-    if (!v) return;
-    const parking = v.parking;
-    clear(parking);
-    for (const zone of zones) {
-      const color = zone.open ? categoryDisplay[zone.category].color : "#667181";
-      const geometry = zone.geometry;
-      const y = selected === zone.id ? 6 : 3;
-      const parts: T.Object3D[] = geometry.type === "strip" ? strip(parking, geometry.points, geometry.w + 2, color, y) : [];
-      if (geometry.type !== "strip") {
-        const [first, ...rest] = outline(geometry);
-        const shape = new T.Shape();
-        shape.moveTo(first[0], -first[1]);
-        for (const point of rest) shape.lineTo(point[0], -point[1]);
-        shape.closePath();
-        const mesh = new T.Mesh(new T.ShapeGeometry(shape), new T.MeshLambertMaterial({ color, side: T.DoubleSide }));
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.y = y;
-        parking.add(mesh);
-        parts.push(mesh);
-      }
-      for (const part of parts) part.userData.zone = zone.id;
-    }
-    for (const space of spaces.filter((entry) => entry.zone_id === selected)) {
-      const active = space.id === selectedSpace;
-      const mesh = slab(parking, space.x, space.y, active ? 5 : 3.8, active ? 5 : 3.8, 2, spaceColor(space), 8);
-      mesh.userData.space = space.id;
-      if (active) {
-        const ring = new T.Mesh(new T.RingGeometry(3.6, 5.1, 24), new T.MeshBasicMaterial({ color: "#fff5d1" }));
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.copy(at([space.x, space.y], 10.1));
-        ring.userData.space = space.id;
-        parking.add(ring);
-      }
-    }
-    v.draw();
-  }, [zones, spaces, selected, selectedSpace]);
-
-  useEffect(() => {
-    view.current?.fit(focus ?? campusFocus(campus.size));
-  }, [focus, campus.size]);
-
-  return <div ref={host} className="map-leaflet" aria-hidden="true" />;
+  return <div ref={node} className="map-leaflet" data-theme={night ? "night" : "day"} />;
 }
 ```

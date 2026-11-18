@@ -14,7 +14,7 @@ Parking is **manually reported**. A database-confirmed session means the user re
 
 | Release | Deliverables |
 | --- | --- |
-| Hosted demo | Responsive driver, officer, and admin experiences. 3D and 2D campus maps, 27 proposed zones, individual demo spaces, vehicle registration, eligible-space search, manual parking sessions, live synchronization, reports, zone and space editing, targeted in-app notices, and PWA installation. |
+| Hosted demo | Responsive driver, officer, and admin experiences. Interactive 2D campus map, 27 proposed zones, individual demo spaces, vehicle registration, eligible-space search, manual parking sessions, live synchronization, reports, zone and space editing, targeted in-app notices, and PWA installation. |
 | Campus pilot | Reconciled and physically verified parking inventory, university-approved access and verification rules, real email delivery, operational ownership, privacy controls, monitoring, and a tested restore procedure. |
 | Follow-up | GPS-based navigation after geographic alignment, measured route distances where a routable campus network exists, opt-in push, scheduled announcements, and expanded analytics and exports. |
 
@@ -25,23 +25,23 @@ The first release uses one campus, one web app, and one database per environment
 | Concern | Choice | Rationale |
 | --- | --- | --- |
 | Application | Next.js App Router, React, TypeScript, and Tailwind CSS | One deployable project for the responsive UI, route handlers, and server-rendered screens. |
-| Map views | Three.js for 3D and Leaflet with `CRS.Simple` for 2D | Both render the same campus geometry and live status. Local coordinates match the precision of the supplied reference. |
+| Campus map | Leaflet with `CRS.Simple` | The 2D plan draws the supplied HTML's campus geometry and overlays live parking status. Local coordinates match the precision of the supplied reference. |
 | Identity | Supabase Auth with email verification, password reset, and server-side session handling | Managed credential lifecycle with application roles and account state in PostgreSQL. |
 | Database | Supabase PostgreSQL, SQL migrations, and a server-only pooled database connection | Transactions, row locks, and constraints protect claims and historical records. |
 | Live updates | Supabase Realtime Broadcast over a private channel | Connected clients learn when to refresh availability. PostgreSQL owns current status. |
 | Hosting | Vercel for Next.js, with a separate Supabase project per hosted environment | HTTPS, deploy previews, and isolation between demo and pilot. |
-| Visual design | Leeward by GetLayers.ai | Use its landscape presentation as a reference for the daylight 3D campus and build the parking interface around the supplied UoM geometry. [Leeward preview](https://www.getlayers.ai/layer/leeward) |
+| Visual design | Moratuwa Parking Atlas | The public atlas, driver access page, and parking board use a printed campus plan, condensed headings, and an orange locator. [Phase 7](../workplan/07-animated-parking-atlas.md) |
 
 ```text
 Phone, tablet, desktop
-    ├─ Next.js UI and 2D/3D map components
+    ├─ Next.js UI and Leaflet campus map
     ├─ HTTPS → Next.js pages and /api/v1 route handlers
     │            ├─ Supabase Auth → validate the current identity
     │            └─ Server-side services → PostgreSQL
     └─ Private Supabase Realtime channel ← committed parking changes
 ```
 
-Pages and route handlers call the same server-side domain services for authorization, eligibility, parking operations, and reporting. Render account pages and initial data on the server where appropriate. Load WebGL and map controls in client components, with a separate loading boundary from the app shell. Serve the versioned base campus geometry as a static asset. Fetch editable parking geometry and availability through the application API.
+Pages and route handlers call the same server-side domain services for authorization, eligibility, parking operations, and reporting. Render account pages and initial data on the server where appropriate. Load the 2D map and its controls in client components with a separate loading boundary from the app shell. Serve the versioned base campus geometry as a static asset. Fetch editable parking geometry and availability through the application API.
 
 Use the following directory structure when implementation starts.
 
@@ -86,22 +86,22 @@ The [supplied HTML](<./UoM Smart Parking – 3D Campus Map-4.html>) contains 30 
 
 ### Map data and interaction
 
-- **Shared coordinates.** Adopt the source diagram's local `x, y` coordinates, with `x` increasing right and `y` increasing down. Assign the coordinate system a version. Convert those coordinates at the Three.js and Leaflet boundaries. The same zone ID, space ID, and status drive both views.
+- **Shared coordinates.** Adopt the source diagram's local `x, y` coordinates, with `x` increasing right and `y` increasing down. Version the coordinate system and convert it at the Leaflet boundary. The map, zone list, and Find Parking use the same zone IDs, space IDs, and status.
 - **Geometry.** Store base buildings, roads, landmarks, and playground as versioned geometry. Store editable zone polygons or centerlines with width, and space polygons or points, in PostgreSQL. Each editable geometry records its source, coordinate version, verification state, and last editor.
-- **Default experience.** Start with an interactive 3D campus overview. Support rotate, pan, pinch/scroll zoom, overview reset, day/night, labels, search, category filters, and a one-tap 2D view. Remember the user's preferred view. Fall back to 2D if WebGL initialization fails or the context is lost.
+- **Default experience.** Open a top-down plan of the full campus. Support drag to pan, pinch and scroll zoom, overview reset, day and night themes, labels, campus search, and parking category filters.
 - **Parking display.** At overview scale, show zone markers and availability summaries. Show individual spaces when zoomed in or when a zone is selected. Use separate icons, labels, and borders for availability. A detail panel includes space code, category, status, instructions, last update, and a confirmation button when the signed-in user and selected vehicle are eligible. Show session details only to its owner and authorized staff.
-- **Find Parking.** Filter first by access, vehicle type, current operational state, and vacancy. Sort by available count at zone level or approximate distance from a selected entrance or landmark. Clearly label schematic distance and avoid expressing it in metres. Selecting a result focuses both map views on the same space. Demo guidance shows landmarks and the selected location. Campus directions require a verified road network and access restrictions.
-- **Geographic accuracy.** Start with a lightweight 3D model. Obtain approved footprints, heights, and geographic control points for the real campus, align the model, and verify road and stall positions on site. Offer **My Location** when alignment and HTTPS geolocation are available. Show location uncertainty, retain the landmark picker, and keep precise device location out of storage by default. This stage can add a geographic basemap if the team chooses one.
+- **Find Parking.** Filter first by access, vehicle type, current operational state, and vacancy. Sort by available count at zone level or approximate distance from a selected entrance or landmark. Clearly label schematic distance and avoid expressing it in metres. Selecting a result focuses the map on that space. Demo guidance shows landmarks and the selected location. Campus directions require a verified road network and access restrictions.
+- **Geographic accuracy.** Obtain approved footprints and geographic control points for the real campus, align the 2D plan, and verify road and stall positions on site. Offer **My Location** when alignment and HTTPS geolocation are available. Show location uncertainty, retain the landmark picker, and keep precise device location out of storage by default. This stage can add a geographic basemap if the team chooses one.
 
 ### Mobile, accessibility, and GetLayers handoff
 
-Use Leeward’s 3D landscape presentation as the reference for an isometric UoM campus in soft daylight. Use university navy `#173B68` for navigation and primary actions, warm ivory for panels, and the existing vehicle-category palette for map markers. Design **Campus Map**, **Find Parking**, and **My Parking** first. Start with the selected-zone state on a phone and review it at tablet and desktop sizes. [Workplan design brief](../workplan/01-foundation.md#leeward-design-brief)
+Use the Parking Atlas palette for navigation, the selected zone, and primary actions. Keep vehicle-category colors separate from occupancy colors on the live map. [Campus map feature audit](campus-map-feature-audit.md)
 
 On phone widths, keep search and vehicle filters near the top, put selected-zone details in a bottom sheet, and keep touch actions clear of the bottom navigation and safe areas. On wider screens use a side panel beside the map. Driver bottom navigation links to Home, Map, Find Parking, My Parking, and Profile. Add a keyboard-accessible list of zones and spaces for people who use a screen reader or prefer a list. Provide clear focus indicators, visible status text and icons, reduced-motion behavior, and touch targets around 44 CSS px. Test portrait and landscape starting at 360 CSS px wide.
 
 Make the site installable with a web app manifest, icons, and a service worker. Cache the shell and safe public assets such as base geometry. Keep authenticated responses and personal data out of service worker caches. Mark an in-memory snapshot stale if refresh fails, show its last successful sync, and disable parking writes while offline. Refetch on reconnect before enabling claims. Keep a low-cost static loading view until the map renderer is ready.
 
-[Three.js WebGLRenderer](https://threejs.org/docs/pages/WebGLRenderer.html) · [Leaflet local coordinates](https://leafletjs.com/examples-v1/crs-simple/crs-simple.html) · [Next.js PWA guide](https://nextjs.org/docs/app/guides/progressive-web-apps) · [GetLayers docs](https://www.getlayers.ai/docs)
+[Leaflet local coordinates](https://leafletjs.com/examples-v1/crs-simple/crs-simple.html) · [Next.js PWA guide](https://nextjs.org/docs/app/guides/progressive-web-apps) · [GetLayers docs](https://www.getlayers.ai/docs)
 
 ## 5. Parking domain and workflow
 
@@ -212,7 +212,7 @@ Use Git-based deployments with a review check before merging changes. CI runs li
 | Milestone | Exit check |
 | --- | --- |
 | 1. Design and foundation | Approve Map, Find Parking, and My Parking designs for phone and desktop. Set up the Next.js app and migrations. Campus and visitor sign-in, verification, reset, and vehicle registration work. |
-| 2. Campus views and inventory | The HTML's landmarks and all 27 proposal zones appear in 3D and 2D. Load 440 proposed spaces with stable IDs. Both views agree on filters, selected spaces, and counts. Test the 2D fallback and accessible zone list. |
+| 2. Campus map and inventory | The HTML's landmarks and all 27 proposed zones appear on the 2D plan. Load 440 proposed spaces with stable IDs. Verify filters, selection, availability counts, phone gestures, and the accessible zone list. |
 | 3. End-to-end parking | A verified driver can find, park, and leave. Updates show on a second device. Races for the same space, same vehicle, and last user session slot each produce one valid winner. Verify claim retries, closure-versus-claim races, offline behavior, and reconnect reconciliation. |
 | 4. Officers, admins, and announcements | Visitors cannot claim restricted spaces. An officer can verify, log, and correct a report without gaining admin access. Admin edits update both maps, announce closures, and leave audit records. Users see notices for their audience and can mark them read. |
 | 5. Hosted demo | Deploy over HTTPS with synthetic data and clear labeling. Confirm installation where supported, navigation, touch controls, narrow layouts, and map performance on real Android Chrome and iPhone Safari devices. Run the driver flow on desktop as well. |
