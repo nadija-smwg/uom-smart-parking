@@ -12,7 +12,7 @@ This manual contains a complete source listing for the student-project demo. Pha
 | 6 | [PWA, verification, CI/CD, and Vercel hosting](06-testing-and-hosting.md) |
 | 7 | [Animated Parking Atlas and hosted UI verification](07-animated-parking-atlas.md) |
 
-Apply the [Phase 7 Parking Atlas implementation](07-animated-parking-atlas.md) to the reconstructed baseline for the current interface. It includes a motion preview, all ten source blocks, and the two additional package versions. [HTML feature audit](../docs/campus-map-feature-audit.md)
+Apply the [Phase 7 Parking Atlas implementation](07-animated-parking-atlas.md) to the reconstructed baseline for the current interface. It includes a motion preview, all nine source blocks, and the two additional package versions. [HTML feature audit](../docs/campus-map-feature-audit.md)
 
 See [the product architecture](../docs/ARCHITECTURE.md) for the full campus-pilot vision. [Phase 3](03-campus-map.md#public-campus-references) records the public UoM references and the Google Maps link for campus-level directions. The demo uses the 27 proposed zones and 440 planned spaces from the supplied project materials. The named A3 planning PDF and verified field inventory are still pending. Campus-internal GPS routing, scheduled announcements, push notifications, and expanded analytics follow the demo.
 
