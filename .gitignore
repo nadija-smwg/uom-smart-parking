@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+.env*
+!.env.example
+public/campus.json
+public/icon-192.png
+public/icon-512.png
+*.dump

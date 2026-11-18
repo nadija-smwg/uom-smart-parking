@@ -1,0 +1,25 @@
+name: Verify application
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: demo
+      NEXT_PUBLIC_SUPABASE_URL: https://build-only.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: build-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run assets
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build

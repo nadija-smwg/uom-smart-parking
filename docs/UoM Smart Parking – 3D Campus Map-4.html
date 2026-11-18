@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UoM Smart Parking – 3D Campus Map</title>
+<style>
+:root{--bg:#0b1020;--glass:rgba(16,22,40,.82);--tx:#e8edf8;--mu:#93a0bd;--bd:rgba(255,255,255,.12);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.p{position:absolute;background:var(--glass);border:1px solid var(--bd);border-radius:14px;backdrop-filter:blur(10px);padding:12px 14px}
+#hd{top:12px;left:12px}#hd h1{margin:0;font-size:16px}#hd small{color:var(--mu)}
+#lg{left:12px;bottom:12px;width:250px;max-height:55vh;overflow:auto}
+.r{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;user-select:none}
+.r i{width:14px;height:14px;border-radius:4px;flex:none}.r b{flex:1;font-weight:500}.r span{color:var(--mu);font-size:12px}
+.r.off{opacity:.35}
+.bar{height:4px;background:rgba(255,255,255,.12);border-radius:2px;margin:-2px 0 4px 22px;overflow:hidden}.bar u{display:block;height:100%}
+#rt{right:12px;top:12px;width:200px;max-height:45vh;overflow:auto}
+#rt h3,#lg h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
+#rt button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--tx);padding:5px 6px;border-radius:6px;cursor:pointer;font:inherit}
+#rt button:hover{background:rgba(255,255,255,.1)}
+#tb{right:12px;bottom:12px;display:flex;gap:6px;padding:8px}
+#tb button{background:rgba(255,255,255,.08);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit}
+#tb button.on{background:#2f7bff}
+#info{left:50%;top:12px;transform:translateX(-50%);min-width:210px;display:none;text-align:center}
+#info h2{margin:0 0 2px;font-size:15px}
+.lb{position:absolute;pointer-events:none;font-size:11px;color:#fff;text-shadow:0 0 4px #000,0 0 3px #000;white-space:nowrap;transform:translate(-50%,-100%)}
+#vt{top:64px;left:12px;display:flex;gap:6px;flex-wrap:wrap;padding:6px;max-width:calc(100% - 24px)}
+#vt button,#info button{background:rgba(255,255,255,.08);color:var(--tx);border:1px solid var(--bd);border-radius:18px;padding:7px 11px;cursor:pointer;font:inherit}
+#vt button.on{background:#2f7bff;border-color:#2f7bff}
+#info button{background:#2f7bff;border:0;margin-top:6px}#info button:disabled{opacity:.4}#info #lv{background:#e5484d}
+#al{right:12px;bottom:64px;width:280px;max-height:50vh;overflow:auto;display:none;z-index:5}
+#al h3{margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
+.nt{padding:8px 0;border-top:1px solid var(--bd)}.nt span{display:block;color:var(--mu);font-size:12px}
+#nb{background:#ff3b30;border-radius:9px;padding:0 6px;margin-left:4px;font-size:11px}#nb:empty{display:none}
+#ts{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);background:#2f7bff;color:#fff;padding:8px 14px;border-radius:20px;display:none;z-index:9;max-width:90%}
+#lg h3{cursor:pointer}
+@media(max-width:700px){#rt{display:none}#lg{width:calc(100% - 24px);max-height:34vh;bottom:62px}#lg.min #lgi,#lg.min small{display:none}#tb{left:12px;right:12px;overflow-x:auto}#hd small{display:none}#info{top:auto;bottom:118px;left:12px;right:12px;transform:none}#al{left:12px;right:12px;width:auto}}
+</style></head><body>
+<canvas id="c"></canvas><div id="labels"></div>
+<div class="p" id="hd"><h1>University of Moratuwa · Smart Parking</h1><small>Drag to rotate · scroll/pinch to zoom · right-drag to pan · tap a bay</small></div>
+<div class='p' id='vt'><button data-k='car'>🚗 Car / Van</button><button data-k='bike'>🏍️ Bike</button><button data-k='cycle'>🚲 Bicycle</button><button data-k='uni'>🚐 Uni</button><button id='vf'>⚡ Nearest free</button><button id='vm' style='display:none'>📍 My spot</button></div>
+<div class='p' id='al'></div><div id='ts'></div>
+<div class='p' id='info'></div>
+<div class="p" id="rt"><h3>Roads</h3><div id="rl"></div></div>
+<div class="p" id="lg"><h3>Parking types (tap to filter)</h3><div id="lgi"></div><small style="color:var(--mu)">Pin: green = free · amber = filling · red = full. Demo data.</small></div>
+<div class="p" id="tb"><button id="bn" class="on">Night</button><button id="bt">Traffic</button><button id="bl" class="on">Labels</button><button id='bv'>Top view</button><button id='ba'>🔔<span id='nb'></span></button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const P=(x,y)=>[x-511,y-371];
+const TY={car:{c:0xff3b30,n:'Car & Van'},bike:{c:0x2f7bff,n:'Motorbike'},cycle:{c:0xff4fd8,n:'Bicycle'},uni:{c:0x3a3a3a,n:'University vehicles',e:0xaaaaaa},other:{c:0x3ddc97,n:'Other / unassigned'}};
+const per={car:45,bike:8,cycle:4,uni:45,other:45};
+// roads: name, width, pts(px)
+const ROADS=[
+['Mill Road',13,[[228,0],[222,100],[215,300],[210,400],[190,520],[140,620],[125,742]]],
+['Katubedda–Kospelena Road',20,[[0,522],[150,560],[330,610],[480,652],[640,712],[740,742]]],
+['Sumanadasa Front Road',8,[[235,375],[325,385],[560,402],[635,412]]],
+['UoM Main Street',10,[[630,692],[635,560],[640,410],[650,300],[665,190],[685,40],[700,25],[790,28],[840,0]]],
+['Playground Road',6,[[290,272],[640,298]]],
+['Link Road',6,[[645,302],[740,322]]],
+['North-East Avenue',7,[[640,405],[720,340],[800,272],[870,225],[915,218]]],
+['Research Lane',6,[[858,0],[864,120],[866,225]]],
+['Hostel Road',6,[[868,120],[1022,98]]],
+['Exam Hall Road',7,[[640,448],[720,482],[800,525],[825,528]]],
+['Auditorium Loop',6,[[775,448],[840,420],[880,380],[912,350]]],
+['Library Ring',7,[[630,692],[700,700],[790,706],[880,650],[960,690],[1022,712]]],
+['Engineering Back Road',6,[[225,380],[225,430],[235,545],[330,551],[450,566],[470,592],[468,625]]],
+['Food Court Lane',5,[[538,497],[632,497]]],
+['Siribara Manike Road',7,[[172,585],[180,660],[186,742]]],
+['West Lane',5,[[100,130],[205,132]]]];
+// parking boxes: type,name,cx,cy,w,h,rot(deg)
+const PB=[
+['car','Playground Car Park',443,257,84,24,0],['car','Mill Road Car Bay',225,318,12,24,0],
+['car','Admin Car Park (E)',581,540,12,60,0],['car','Admin Car Park (S)',540,572,92,14,0],
+['car','Hostel Car Park',940,92,44,34,0],['car','Boys Hostel Bay',891,240,16,16,45],
+['car','Electronic Dept Car Park',680,431,24,26,0],['car','Library Roadside Bay',638,612,4,42,0],['car','Research Lane Bay',872,170,4,34,0],
+['bike','Mill Road Bike Bay',224,347,12,14,0],['bike','Graduate Studies Bikes',641,553,8,22,0],
+['bike','Exam Hall Bikes A',737,474,22,14,25],['bike','Exam Hall Bikes B',757,486,22,14,25],
+['cycle','Bicycle Rack',655,481,14,26,-8],
+['uni','University Vehicles A',514,633,48,14,0],['uni','University Vehicles B',602,643,32,14,0],
+['other','Reserved Bay 1',514,265,22,40,0],['other','Reserved Bay 2',543,262,30,40,0],['other','Reserved Bay 3',572,265,30,40,0],['other','Reserved Bay 4',603,265,30,40,0]];
+// parking strips (roadside): type,name,pts,width
+const PS=[
+['car','Main Street Roadside',[[685,44],[660,190]],5],['bike','Sumanadasa Front Bikes',[[323,385],[560,403],[635,412]],5],
+['bike','Engineering Back Bikes',[[330,558],[448,567]],4],['bike','Research Lane Bikes',[[858,6],[864,100]],4],
+['bike','NE Avenue Bikes',[[745,285],[850,236]],4],['bike','Exam Hall Road Bikes',[[765,503],[815,527]],4],
+['other','Playground Road Bay',[[290,272],[636,297]],4]];
+// buildings: name,x,y,w,h,height,label
+const BD=[
+['Sumanadasa Building',435,300,205,85,26,1],['UoM Gym',548,185,82,42,14,1],['Textile & Apparel Eng.',710,65,120,85,22,1],
+['Fashion & Product Design',795,5,100,50,18,1],['Transport & Logistics',775,145,75,65,16,1],['L Building',682,185,100,50,16,1],
+['Faculty of Business',690,228,60,38,14,1],['Faculty of IT',780,250,75,65,16,1],['Electronic & Telecom',705,352,100,72,20,1],
+['Wala Canteen',375,296,65,50,9,1],['Aeronautical Lab',283,303,70,45,10,1],['Earth Resources Eng.',385,402,90,60,14,1],
+['Workshops',233,383,115,85,12,0],['Goda Canteen',490,405,40,60,9,1],['Food Court',570,420,60,70,10,1],
+['Examination Hall',790,478,60,52,12,1],['New Auditorium',830,440,48,48,16,1],['Faculty of Medicine',805,545,70,38,12,1],
+['Library',645,585,72,78,22,1],['Architecture',752,578,58,80,18,1],['Town & Country Planning',752,668,62,56,12,1],
+['Administration',470,598,150,36,12,1],['Graduate Studies',640,520,40,36,10,1],['Girls Hostel',950,305,60,60,16,1],
+['Boys Hostel',895,262,40,28,14,0],['CE Research Lab',930,122,60,38,12,1],['Block A',210,490,100,22,10,0],['Block B',255,520,95,26,10,0],
+['Block C',350,470,120,22,10,0],['Admin Annex',590,510,40,60,12,0]];
+const cv=document.getElementById('c');
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new THREE.Scene(),CAM=new THREE.PerspectiveCamera(50,1,1,4000);
+const amb=new THREE.AmbientLight(0xffffff,.5),sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(-300,500,200);S.add(amb,sun);
+const M=(c,e,ei)=>new THREE.MeshStandardMaterial({color:c,emissive:e||0,emissiveIntensity:ei||0,roughness:.8});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(2400,2000),M(0x141b2f));ground.rotation.x=-Math.PI/2;ground.position.y=-.5;S.add(ground);
+const campus=new THREE.Mesh(new THREE.PlaneGeometry(1022,742),M(0x1a2340));campus.rotation.x=-Math.PI/2;campus.position.y=-.2;S.add(campus);
+const grass=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.4,48),M(0x1c5a3a));grass.scale.set(130,1,105);grass.position.set(...[P(385,128)[0],0,P(385,128)[1]]);S.add(grass);
+function seg(a,b,w,h,y,mat,g){const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),m=new THREE.Mesh(new THREE.BoxGeometry(L,h,w),mat);m.position.set((a[0]+b[0])/2,y,(a[1]+b[1])/2);m.rotation.y=-Math.atan2(dz,dx);g.add(m);return m}
+function path(pts,w,h,y,mat,g,cap){const p=pts.map(q=>P(...q));for(let i=0;i<p.length-1;i++)seg(p[i],p[i+1],w,h,y,mat,g);if(cap)p.forEach(q=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(w/2,w/2,h,14),mat);c.position.set(q[0],y,q[1]);g.add(c)});return p}
+const roadMat=M(0x39425a),lineMat=M(0x9fb6e8,0x9fb6e8,.9),kerb=M(0x5a6788);
+const G={roads:new THREE.Group(),b:new THREE.Group(),park:{}},RP=[];
+S.add(G.roads,G.b);
+ROADS.forEach(([n,w,pts])=>{const p=path(pts,w,.8,.3,roadMat,G.roads,true);path(pts,.9,.3,.8,lineMat,G.roads,false);RP.push({n,w,p})});
+const bm=M(0x4a5470),edge=new THREE.LineBasicMaterial({color:0x8aa0d8,transparent:true,opacity:.5}),labs=[];
+const LB=document.getElementById('labels');
+BD.forEach(([n,x,y,w,h,ht,l],i)=>{const c=P(x+w/2,y+h/2),H=ht*(.9+((i*37)%10)/50);const m=new THREE.Mesh(new THREE.BoxGeometry(w,H,h),bm);m.position.set(c[0],H/2,c[1]);G.b.add(m);
+const e=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),edge);e.position.copy(m.position);G.b.add(e);
+if(l){const d=document.createElement('div');d.className='lb';d.textContent=n;LB.appendChild(d);labs.push({d,v:new THREE.Vector3(c[0],H+3,c[1])})}});
+// parking
+const spots=[],pick=[],pins=[];
+Object.keys(TY).forEach(k=>{G.park[k]=new THREE.Group();S.add(G.park[k])});
+function reg(t,n,cap,pos,meshes){const s={t,n,cap,occ:0,meshes};spots.push(s);meshes.forEach(m=>{m.userData.s=s;pick.push(m)});
+const pin=new THREE.Mesh(new THREE.ConeGeometry(3.2,9,4),M(TY[t].c,TY[t].e||TY[t].c,1));pin.rotation.x=Math.PI;pin.position.set(pos[0],20,pos[1]);pin.userData.s=s;G.park[t].add(pin);pins.push(pin);pick.push(pin);meshes.push(pin)}
+const mm=t=>M(TY[t].c,TY[t].e||TY[t].c,.55);
+PB.forEach(([t,n,x,y,w,h,r])=>{const c=P(x,y),m=new THREE.Mesh(new THREE.BoxGeometry(w,2.4,h),mm(t));m.position.set(c[0],1.3,c[1]);m.rotation.y=-r*Math.PI/180;G.park[t].add(m);reg(t,n,Math.max(2,Math.round(w*h/per[t])),c,[m])});
+PS.forEach(([t,n,pts,w])=>{const g=new THREE.Group();const p=path(pts,w,2.4,1.3,mm(t),g,false);G.park[t].add(g);let L=0;for(let i=0;i<p.length-1;i++)L+=Math.hypot(p[i+1][0]-p[i][0],p[i+1][1]-p[i][1]);const mid=p[Math.floor(p.length/2)];reg(t,n,Math.max(3,Math.round(L/({bike:3,car:10}[t]||12))),[mid[0],mid[1]],g.children.slice())});
+// traffic
+const TG={car:100,bike:250,cycle:50,uni:20,other:20};
+Object.keys(TG).forEach(k=>{const a=spots.filter(s=>s.t===k),sm=a.reduce((x,s)=>x+s.cap,0);a.forEach(s=>{s.f=s.cap/sm*TG[k];s.cap=Math.max(1,Math.floor(s.f))});let left=TG[k]-a.reduce((x,s)=>x+s.cap,0);a.slice().sort((p,q)=>(q.f%1)-(p.f%1)).forEach(s=>{if(left>0){s.cap++;left--}})});
+const cars=[];const cg=new THREE.Group();S.add(cg);
+RP.forEach(r=>{if(r.w<6||r.p.length<2)return;let L=0;const ls=[];for(let i=0;i<r.p.length-1;i++){const l=Math.hypot(r.p[i+1][0]-r.p[i][0],r.p[i+1][1]-r.p[i][1]);ls.push(l);L+=l}
+const n=Math.max(2,Math.round(L/160));for(let k=0;k<n;k++){const m=new THREE.Mesh(new THREE.BoxGeometry(6,2.6,3),M(0xffffff,[0xffd166,0xff8fab,0x7bdff2,0xb2f7ef][k%4],.9));cg.add(m);cars.push({m,r,L,ls,t:Math.random()*L,v:(14+Math.random()*14)*(k%2?1:-1),o:(k%2?1:-1)*r.w*.22})}});
+cg.visible=false;
+function place(c,dt){c.t=(c.t+c.v*dt+c.L)%c.L;let t=c.t,i=0;while(t>c.ls[i]&&i<c.ls.length-1){t-=c.ls[i];i++}const a=c.r.p[i],b=c.r.p[i+1],f=t/c.ls[i],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz);
+c.m.position.set(a[0]+dx*f-dz/l*c.o,2.5,a[1]+dz*f+dx/l*c.o);c.m.rotation.y=-Math.atan2(dz,dx)+(c.v<0?Math.PI:0)}
+// legend
+const lgi=document.getElementById('lgi'),rows={};
+Object.keys(TY).forEach(k=>{const d=document.createElement('div');d.innerHTML='<div class="r"><i style="background:#'+TY[k].c.toString(16).padStart(6,'0')+(k==='uni'?';border:1px solid #aaa':'')+'"></i><b>'+TY[k].n+'</b><span></span></div><div class="bar"><u style="background:#'+TY[k].c.toString(16).padStart(6,'0')+'"></u></div>';lgi.appendChild(d);
+d.firstChild.onclick=()=>{G.park[k].visible=!G.park[k].visible;d.firstChild.classList.toggle('off',!G.park[k].visible)};rows[k]=d});
+function stats(){spots.forEach(s=>{const f=s.cap-s.occ,c=f<=0?0xff3b30:f/s.cap<.4?0xffb020:0x2ee59d,p=pinOf(s);p.material.color.setHex(c);p.material.emissive.setHex(c);s.meshes[0].material.emissiveIntensity=f<=0?.1:.55});Object.keys(TY).forEach(k=>{let o=0,c=0;spots.filter(s=>s.t===k).forEach(s=>{o+=s.occ;c+=s.cap});rows[k].querySelector('span').textContent=o+' / '+c;rows[k].querySelector('u').style.width=(c?o/c*100:0)+'%'});if(cur)showInfo(cur)}
+const info=document.getElementById('info');let cur=null;
+let me=null,vtype=null,seen=0;
+try{seen=+localStorage.getItem('uomSeen')||0;const sv=localStorage.getItem('uomMe');if(sv&&spots.some(x=>x.n===sv))me=sv}catch(_){}
+const $=id=>document.getElementById(id),pinOf=s=>s.meshes[s.meshes.length-1];
+let tt;function toast(m){const t=$('ts');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3200)}
+function showInfo(s){showInfo0(s);addBtn(s)}
+function addBtn(s){const free=s.cap-s.occ;let h='';if(vtype&&s.t!==vtype)h+=`<div style='color:#ffb020;font-size:12px'>Not designated for your vehicle type</div>`;h+=me===s.n?`<button id='lv'>I’ve left</button>`:`<button id='pk' ${free?'':'disabled'}>I’ve parked here</button>`;info.insertAdjacentHTML('beforeend',h)}
+info.onclick=e=>{const b=e.target.closest('button');if(!b||!cur)return;
+if(b.id==='pk'){const o=spots.find(x=>x.n===me);if(o)o.occ=Math.max(0,o.occ-1);cur.occ=Math.min(cur.cap,cur.occ+1);me=cur.n;toast('Marked as occupied: '+me)}
+else if(b.id==='lv'){cur.occ=Math.max(0,cur.occ-1);me=null;toast('Thanks! Bay released')}
+try{localStorage.setItem('uomMe',me||'')}catch(_){}
+stats();myBar()};
+function myBar(){$('vm').style.display=me?'':'none'}
+function fly(s){const p=pinOf(s).position;tgt.set(p.x,0,p.z);dist=Math.min(dist,200);ph=Math.min(ph,1.1);auto=false}
+$('vm').onclick=()=>{const s=spots.find(x=>x.n===me);if(s){fly(s);showInfo(s)}};
+const vtb=document.querySelectorAll('#vt button[data-k]');
+function setV(k){vtype=vtype===k?null:k;vtb.forEach(b=>b.classList.toggle('on',b.dataset.k===vtype));Object.keys(TY).forEach(t=>{const on=!vtype||t===vtype;G.park[t].visible=on;rows[t].firstChild.classList.toggle('off',!on)})}
+vtb.forEach(b=>b.onclick=()=>setV(b.dataset.k));
+$('vf').onclick=()=>{if(!vtype){toast('Choose your vehicle type first');return}const g=P(630,692);let best=null,bd=1e9;spots.forEach(s=>{if(s.t!==vtype||s.cap-s.occ<1)return;const p=pinOf(s).position,d=Math.hypot(p.x-g[0],p.z-g[1]);if(d<bd){bd=d;best=s}});if(best){fly(best);showInfo(best);toast('Nearest free bay to the main entrance')}else toast('No free bays for this vehicle right now')};
+const NO=[['Reserved bays','Bays 1–4 beside the playground will be reserved for staff from Monday.'],['New motorbike bays','Motorbike parking is now marked along Exam Hall Road and Sumanadasa Front Road.'],['Road marking work','Car parks near the Administration Building are being repainted this weekend.'],['Parking rule','Park only in bays marked for your vehicle type.']];
+function badge(){$('nb').textContent=Math.max(0,NO.length-seen)||''}
+function renderAl(){$('al').innerHTML='<h3>Notifications</h3>'+NO.map(n=>`<div class='nt'><b>${n[0]}</b><span>${n[1]}</span></div>`).join('')}
+$('ba').onclick=()=>{const a=$('al'),o=a.style.display!=='block';a.style.display=o?'block':'none';if(o){renderAl();seen=NO.length;try{localStorage.setItem('uomSeen',seen)}catch(_){}}badge()};
+setTimeout(()=>{NO.unshift(['Live update','Main Street roadside bay is full – try the Playground Car Park.']);toast('🔔 New parking notice');if($('al').style.display==='block'){renderAl();seen=NO.length}badge()},2e9);
+$('lg').querySelector('h3').onclick=()=>$('lg').classList.toggle('min');if(innerWidth<700)$('lg').classList.add('min');
+badge();myBar();if(me)setTimeout(()=>toast('You’re parked at '+me),600);
+function showInfo0(s){cur=s;const free=s.cap-s.occ;info.style.display='block';info.innerHTML='<h2>'+s.n+'</h2><div style="color:var(--mu)">'+TY[s.t].n+'</div><div style="font-size:20px;margin:4px 0;color:'+(free?'#7dffb0':'#ff7b7b')+'">'+free+' free <small style="color:var(--mu)">of '+s.cap+'</small></div>'}
+stats();
+// roads list
+const rl=document.getElementById('rl');ROADS.forEach((r,i)=>{const b=document.createElement('button');b.textContent=r[0];b.onclick=()=>{const p=RP[i].p,m=p[Math.floor(p.length/2)];tgt.set(m[0],0,m[1]);dist=Math.min(dist,260);auto=false};rl.appendChild(b)});
+// camera
+let th=-.6,ph=.9,dist=950,tgt=new THREE.Vector3(0,0,0),auto=true,topV=false;
+function cam(){CAM.position.set(tgt.x+dist*Math.sin(ph)*Math.sin(th),tgt.y+dist*Math.cos(ph),tgt.z+dist*Math.sin(ph)*Math.cos(th));CAM.lookAt(tgt)}
+const ptr=new Map();let moved=0,pd=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);moved=0;auto=false;pd=0});
+cv.addEventListener('pointerup',e=>{ptr.delete(e.pointerId);if(moved<5)click(e)});
+cv.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const o=ptr.get(e.pointerId),dx=e.clientX-o[0],dy=e.clientY-o[1];
+if(ptr.size===2){const o2=[...ptr.entries()].find(q=>q[0]!==e.pointerId)[1],d0=Math.hypot(o[0]-o2[0],o[1]-o2[1]),d1=Math.hypot(e.clientX-o2[0],e.clientY-o2[1]);dist=Math.max(60,Math.min(1800,dist*d0/d1))}
+else if(e.buttons&2||e.shiftKey){const k=dist*.0016;tgt.x-=(Math.cos(th)*dx+Math.sin(th)*Math.cos(ph)*dy)*k*-1;tgt.z-=(-Math.sin(th)*dx+Math.cos(th)*Math.cos(ph)*dy)*k*-1}
+else{th-=dx*.006;ph=Math.max(.15,Math.min(1.45,ph-dy*.005))}
+moved+=Math.abs(dx)+Math.abs(dy);ptr.set(e.pointerId,[e.clientX,e.clientY])});
+cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(60,Math.min(1800,dist*(1+e.deltaY*.001)));auto=false},{passive:false});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();
+function click(e){mv.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv,CAM);const h=ray.intersectObjects(pick.filter(m=>m.parent&&m.parent.visible!==false&&(m.parent.parent?m.parent.parent.visible!==false:true)))[0];if(h)showInfo(h.object.userData.s);else{info.style.display='none';cur=null}}
+// toggles
+let night=true;const bn=document.getElementById('bn');
+function theme(){const c=night?[0x0b1020,0x141b2f,0x1a2340,0x4a5470,0x39425a,.45,.8]:[0xcfe6ff,0xe3e9d9,0xf3efe6,0xcfc6b8,0xffffff,.9,1.1];
+S.background=new THREE.Color(c[0]);S.fog=new THREE.Fog(c[0],900,2200);ground.material.color.set(c[1]);campus.material.color.set(c[2]);bm.color.set(c[3]);roadMat.color.set(c[4]);lineMat.color.set(night?0x9fb6e8:0xd9a441);lineMat.emissive.set(night?0x9fb6e8:0x000000);amb.intensity=c[5];sun.intensity=c[6];grass.material.color.set(night?0x1c5a3a:0x8fcf8f);document.documentElement.style.setProperty('--bg',night?'#0b1020':'#cfe6ff');bn.textContent=night?'Night':'Day'}
+bn.onclick=()=>{night=!night;theme()};theme();
+const tg=(id,f)=>{const b=document.getElementById(id);b.onclick=()=>{b.classList.toggle('on');f(b.classList.contains('on'))}};
+tg('bt',v=>cg.visible=v);let showL=true;tg('bl',v=>showL=v);
+document.getElementById('bv').onclick=()=>{topV=!topV;ph=topV?.15:.9;auto=false;tgt.set(0,0,0);dist=topV?1100:900};
+function size(){R.setSize(innerWidth,innerHeight);CAM.aspect=innerWidth/innerHeight;CAM.updateProjectionMatrix()}addEventListener('resize',size);size();
+(async()=>{let db=null,user=null,uid=null;
+try{if(window.claude){user=await claude.use('user');db=await claude.use('db')}}catch(_){}
+if(!db||!user)return;
+try{uid=await user.id()}catch(_){return}
+if(!uid)return;
+const adm=await user.canEdit();
+const slug=s=>s.n.replace(/[^A-Za-z0-9]+/g,'-'),esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])),byId={};
+spots.forEach(s=>byId[slug(s)]=s);
+document.querySelector('#hd small').textContent='● Live · shared with all users';
+document.querySelector('#lg small').textContent='Pin: green = free · amber = filling · red = full. Live data.';
+db.collection('parked').onSnapshot(sn=>{spots.forEach(s=>s.occ=0);let mine=null;sn.docs.forEach(d=>{const x=d.data()||{},s=byId[x.bay];if(s){s.occ=Math.min(s.cap,s.occ+1);if(d.id===uid)mine=s.n}});me=mine;myBar();stats()},()=>{});
+info.onclick=async e=>{const b=e.target.closest('button');if(!b||!cur)return;
+try{if(b.id==='pk'){await db.doc('parked/'+uid).set({bay:slug(cur),ts:Date.now()});toast('Marked as occupied: '+cur.n)}
+else if(b.id==='lv'){await db.doc('parked/'+uid).delete();toast('Thanks! Bay released')}}catch(_){toast('Could not save – you may have view-only access')}};
+let first=true;
+db.collection('notices').onSnapshot(sn=>{const a=sn.docs.map(d=>({id:d.id,...d.data()})).sort((p,q)=>q.ts-p.ts),had=NO.length;NO.length=0;a.forEach(n=>NO.push([n.title,n.body,n.id]));badge();if($('al').style.display==='block')renderAl();else if(!first&&NO.length>had)toast('🔔 New parking notice');first=false},()=>{});
+renderAl=function(){$('al').innerHTML='<h3>Notifications</h3>'+(adm?`<div class='nt'><input id='nt1' placeholder='Title' style='width:100%;margin-bottom:4px'><textarea id='nt2' placeholder='Message' style='width:100%'></textarea><button id='np' style='margin-top:4px'>Post notice</button></div>`:'')+NO.map(n=>`<div class='nt'><b>${esc(n[0])}</b>${adm&&n[2]?` <a data-d='${n[2]}' style='cursor:pointer;color:#ff7b7b'>delete</a>`:''}<span>${esc(n[1])}</span></div>`).join('')};
+$('al').onclick=async e=>{const t=e.target;try{if(t.id==='np'){const a=$('nt1').value.trim(),b=$('nt2').value.trim();if(a&&b){await db.collection('notices').add({title:a,body:b,ts:Date.now()});toast('Notice posted')}}else if(t.dataset.d){await db.doc('notices/'+t.dataset.d).delete()}}catch(_){toast('Could not save')}};
+})();
+const clk=new THREE.Clock(),v3=new THREE.Vector3();
+(function loop(){requestAnimationFrame(loop);const dt=Math.min(clk.getDelta(),.1),t=clk.elapsedTime;if(auto)th+=dt*.08;
+pins.forEach((p,i)=>{p.position.y=18+Math.sin(t*2+i)*2.5;p.rotation.y=t+i});cg.visible&&cars.forEach(c=>place(c,dt));cam();R.render(S,CAM);
+labs.forEach(l=>{v3.copy(l.v).project(CAM);const ok=showL&&v3.z<1&&dist<1100;l.d.style.display=ok?'block':'none';if(ok)l.d.style.transform='translate('+((v3.x*.5+.5)*innerWidth)+'px,'+((-v3.y*.5+.5)*innerHeight)+'px) translate(-50%,-100%)'});
+labs.forEach(l=>{l.d.style.left=0;l.d.style.top=0})})();
+</script></body></html>
