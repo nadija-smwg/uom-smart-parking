@@ -104,6 +104,8 @@ Open [the example local address](http://localhost:3107). For interactive editing
 
 ## Verification record
 
+The Parking Atlas went live on 19 November 2026. Chrome verified the public site at 1440, 390, and 320 CSS pixels. The hosted zone picker, directory, Main Street trace, registration, and password recovery screens responded to input. The implementation passed the GitHub application, PostgreSQL, and production smoke checks. [Hosted app](https://uom-smart-parking.vercel.app/) · [Release run](https://github.com/nadija-smwg/uom-smart-parking/actions/runs/44405531132) · [HTML feature audit](../docs/campus-map-feature-audit.md)
+
 The local production build, TypeScript, and campus fixture tests passed. Chrome exercised the atlas at 1440, 390, and 320 CSS pixels, including all-zone expansion, search, category filtering, focus return, zone wraparound, the road trace, and the reduced-motion state. A separate production run used two driver sessions, local PostgreSQL, and simulated authentication and realtime services. It covered the parking board, touch map, concurrent claims, releases, offline handling, and polling after a socket disconnect.
 
 ## Source files

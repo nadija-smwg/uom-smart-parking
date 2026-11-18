@@ -10,6 +10,7 @@ This manual contains a complete source listing for the student-project demo. Pha
 | 4 | [Driver screens, parking sessions, and live updates](04-driver-live-parking.md) |
 | 5 | [Officer and administrator operations](05-operations.md) |
 | 6 | [PWA, verification, CI/CD, and Vercel hosting](06-testing-and-hosting.md) |
+| 7 | [Animated Parking Atlas and hosted UI verification](07-animated-parking-atlas.md) |
 
 Apply the [Phase 7 Parking Atlas implementation](07-animated-parking-atlas.md) to the reconstructed baseline for the current interface. It includes a motion preview, all nine source blocks, and the two additional package versions. [HTML feature audit](../docs/campus-map-feature-audit.md)
 
