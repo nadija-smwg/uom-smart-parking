@@ -89,6 +89,7 @@
 .street-trace { position: absolute; inset: 0; pointer-events: none; }
 .street-trace i { position: absolute; height: 0; transform-origin: left center; }
 .street-trace b { position: absolute; inset: -2px 0 auto; height: 4px; border-radius: 2px; background: #ffe786; box-shadow: 0 0 0 1px #6b572d; transform-origin: left; }
+.trace-marker { position: absolute; width: .75rem; height: .75rem; border-radius: 50%; transform: translate(-50%, -50%); background: #fff9dc; border: 2px solid #70461e; box-shadow: 0 0 0 3px #ffe78699; }
 .atlas-slip { padding: .7rem .85rem; min-height: 4.75rem; border-top: 1px solid var(--ink); }
 .atlas-zone-code { padding: .4rem .5rem; min-width: 3.5rem; text-align: center; border: 1px solid #9d522b; background: #ffb183; font: 800 1.8rem/1 var(--display); }
 .atlas-zone-choice { flex: 1; min-width: 0; }
@@ -227,6 +228,30 @@
   .atlas-mast .site-brand { gap: .4rem; font-size: .86rem; }
 }
 @media (prefers-reduced-motion: no-preference) {
+  @keyframes atlas-scan { from { transform: translateX(-100%); } to { transform: translateX(410%); } }
+  @keyframes map-stamp { from { transform: translateY(-9px) scale(1.1); opacity: .4; } to { transform: none; opacity: 1; } }
+  @keyframes toggle-mark { 50% { transform: rotate(-12deg) scale(1.16); } }
+  @keyframes meter-open { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+  .availability-list progress { animation: meter-open .55s ease-out backwards; }
+  .availability-list li:nth-child(2) progress { animation-delay: .045s; }
+  .availability-list li:nth-child(3) progress { animation-delay: .09s; }
+  .availability-list li:nth-child(4) progress { animation-delay: .135s; }
+  .availability-list li:nth-child(5) progress { animation-delay: .18s; }
+  .atlas-sheet .atlas-plate::after {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 25%; z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg, transparent, #ffddab17 85%, #ffe3b855);
+    border-right: 1px solid #f9e1a98a; animation: atlas-scan 1.15s .12s ease-in-out both;
+  }
+  .atlas-landmark span { animation: map-stamp .38s .3s cubic-bezier(.2,.72,.3,1.2) backwards; }
+  .atlas-landmark + .atlas-landmark span { animation-delay: .44s; }
+  .atlas-landmark + .atlas-landmark + .atlas-landmark span { animation-delay: .58s; }
+  .map-tools button[aria-pressed="true"] svg, .app-nav button[aria-pressed="true"] svg { animation: toggle-mark .28s ease-out; }
+  .atlas-index button strong, .atlas-key, .map-tools button { transition: translate .18s ease-out, background-color .18s ease-out; }
+  .atlas-key:active, .map-tools button:active { translate: 0 1px; }
+  @media (hover: hover) {
+    .atlas-index button:hover strong { translate: .35rem 0; }
+    .atlas-key:hover { translate: 0 -2px; }
+  }
   @keyframes title-print { from { transform: translateY(.42em); } to { transform: none; } }
   @keyframes sheet-settle { from { transform: perspective(950px) rotateX(3deg) translateY(10px); } to { transform: none; } }
   @keyframes ring-settle { from { transform: scale(1.85); opacity: .4; } to { transform: scale(1); opacity: 1; } }

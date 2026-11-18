@@ -81,6 +81,7 @@ Public signup offers **Campus** and **Visitor**. Email confirmation verifies the
     "@fontsource-variable/manrope": "5.3.0",
     "@supabase/ssr": "0.8.0",
     "@supabase/supabase-js": "2.95.3",
+    "gsap": "3.15.1",
     "leaflet": "1.9.4",
     "lucide-react": "1.75.0",
     "next": "^16.2.0",
@@ -854,6 +855,7 @@ export default async function AccountPage({ searchParams }: {
 import { useState, type FormEvent } from "react";
 import { ArrowRight, GraduationCap, UserRound } from "lucide-react";
 import { browserAuth } from "@/lib/supabase-browser";
+import { useParkingMotion } from "@/lib/use-parking-motion";
 
 type Mode = "signin" | "campus" | "visitor" | "forgot" | "reset";
 const titles: Record<Mode, string> = {
@@ -873,6 +875,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
   const [message, setMessage] = useState(expired ? "This link expired or was already used. Request a new one." : "");
   const [busy, setBusy] = useState(false);
   const signup = mode === "campus" || mode === "visitor";
+  const formPanel = useParkingMotion<HTMLElement>(".auth-title, form > label, .auth-submit", mode);
 
   function changeMode(next: Mode) {
     setMode(next);
@@ -920,7 +923,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
     }
   }
 
-  return <section className="auth-card" aria-labelledby="account-title">
+  return <section ref={formPanel} className="auth-card" aria-labelledby="account-title">
     <div className="auth-title">
       <h1 id="account-title">{titles[mode]}</h1>
       <p className="muted">{instructions[mode]}</p>
@@ -1134,4 +1137,48 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = { matcher: ["/parking", "/account", "/api/v1/:path*"] };
+```
+
+### `src/lib/use-parking-motion.ts`
+
+<!-- file: src/lib/use-parking-motion.ts -->
+
+```ts
+"use client";
+
+import { useLayoutEffect, useRef } from "react";
+import { gsap } from "gsap";
+
+/** Animate the current contents once, including after a deliberate view change. */
+export function useParkingMotion<T extends HTMLElement>(selector: string, view = "", onView = false) {
+  const root = useRef<T>(null);
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const media = gsap.matchMedia();
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const targets = element.querySelectorAll(selector);
+      if (!targets.length) return;
+      const reveal = gsap.fromTo(targets, { y: 12, opacity: 0.45 }, {
+        y: 0, opacity: 1, duration: 0.46, ease: "power3.out",
+        stagger: { amount: Math.min(0.32, (targets.length - 1) * 0.055) },
+        paused: true, immediateRender: false, clearProps: "transform,opacity",
+      });
+      if (!onView) {
+        reveal.play();
+        return;
+      }
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          reveal.play();
+          observer.disconnect();
+        }
+      });
+      observer.observe(element);
+      return () => observer.disconnect();
+    });
+    return () => media.revert();
+  }, [selector, view, onView]);
+  return root;
+}
 ```

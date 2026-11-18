@@ -23,15 +23,18 @@ Open the app and you get a campus sheet you can use before signing in. Pick **Li
 | --- | --- | --- |
 | Open the atlas | The two title lines print into place. The map sheet settles from a slight tilt. | 430 ms per line, 80 ms stagger. Sheet settles in 520 ms. |
 | Select a zone | The detail strip updates immediately. The locator glides to the zone’s schematic coordinates and its outline settles around the endpoint. Rapid selections retarget the same element. | 380 ms travel. The outline settles for 360 ms after a 300 ms delay. |
-| Trace Main Street | A line advances along the stored points of **UoM Main Street**. Segment length determines its share of the drawing time. The toggle hides the highlight or replays it. | 1,100 ms total. |
+| Trace Main Street | A GSAP marker travels with the line along the stored points of **UoM Main Street**. Segment length determines its share of the drawing time. The toggle hides the highlight or replays it. | 1,100 ms total. |
 | Reported availability changes | The new value appears immediately and moves up a fraction of a line. It displays only the value reported by the API. | 160 ms. |
+| Open the campus sheet | A single sweep crosses the map as the landmark labels settle into place. | 1.15 s sweep. |
+| Browse the directory or switch views | Directory rows, account fields, board sections, and map controls enter in sequence. Zone changes replay the selected details. | 460 ms per element with up to 320 ms of stagger. |
+| Open the parking board | Category bars reveal their current values from left to right. | 550 ms plus a short stagger. |
 | Prefer reduced motion | The title and sheet render in their final positions. Zone selection moves the locator immediately. The street toggle shows the entire line immediately. | Static presentation. |
 
-The map image and first zone are available in the initial HTML. The browser handles selection, search, and finite CSS animations. The road trace depicts a street on the schematic. Campus-level directions use the existing Google Maps link.
+The map image and first zone are available in the initial HTML. The browser handles selection, search, and finite GSAP and CSS animations. The road trace depicts a street on the schematic. Campus-level directions use the existing Google Maps link.
 
 ## Apply to the existing Next.js app
 
-Use the current application from Phases 1–6 as the starting point. The blocks below are complete files. The public atlas and the printable diagram share `data/campus.json`. The app already supplies Manrope, Lucide, the account components, map geometry helpers, and authenticated driver data.
+Use the current application from Phases 1–6 as the starting point. The blocks below are complete files. The public atlas and the printable diagram share `data/campus.json`. Phase 1 supplies GSAP 3.15.1 and the shared motion hook. The app already supplies Manrope, Lucide, the account components, map geometry helpers, and authenticated driver data.
 
 | Add | Replace |
 | --- | --- |
@@ -101,6 +104,7 @@ Open [the example local address](http://localhost:3107). For interactive editing
 4. Search for a missing zone and check the empty state. Clear the search, filter to **Bicycles**, and locate **Z20 Bicycle Rack**. The zone picker should have focus and show the selected zone.
 5. Follow **Find parking** while signed out, open visitor registration, and switch to password recovery. With a driver session, verify the board against the authenticated snapshot and use **View campus** to select a zone on the live map.
 6. Operate the zone picker and directory with the keyboard. Use the existing app checks for offline status, eligibility, claims, release, and officer permissions when merging.
+7. Replay the street trace and enable reduced motion while the marker is traveling. It should settle at the endpoint. Open the directory, locate a result, and switch registration modes during their entrances. Check that focus and typing remain available throughout.
 
 ## Verification record
 
@@ -266,6 +270,8 @@ export function CampusPlate({ children, priority = false }: { children?: ReactNo
 
 ```tsx
 import { plan, plotPosition } from "./campus-plate";
+import { useLayoutEffect, useRef } from "react";
+import { gsap } from "gsap";
 
 // Each segment starts when the previous one finishes, at a constant map speed.
 const road = plan.roads.find(([name]) => name === "UoM Main Street");
@@ -279,6 +285,20 @@ const segments = points.slice(1).map(([x, y], i) => {
 const total = segments.reduce((sum, part) => sum + part.length, 0);
 
 export function StreetTrace() {
+  const marker = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const dot = marker.current;
+    if (!dot || !segments.length) return;
+    const media = gsap.matchMedia();
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.set(dot, plotPosition(points[0]));
+      const route = gsap.timeline({ defaults: { ease: "none" } });
+      segments.forEach(({ length }, index) => {
+        route.to(dot, { ...plotPosition(points[index + 1]), duration: 1.1 * length / total });
+      });
+    });
+    return () => media.revert();
+  }, []);
   let elapsed = 0;
   return <div className="street-trace" aria-hidden="true">
     {segments.map(({ start, length, angle }, i) => {
@@ -290,6 +310,7 @@ export function StreetTrace() {
         <b style={{ animationDelay: delay + "ms", animationDuration: duration + "ms" }} />
       </i>;
     })}
+    {points.length > 0 && <span ref={marker} className="trace-marker" style={plotPosition(points[points.length - 1])} />}
   </div>;
 }
 ```
@@ -306,6 +327,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Route, Search } from "lucide-react";
 import { campusDirectionsUrl, categories, categoryDisplay } from "@/lib/contracts";
 import { StreetTrace } from "./street-trace";
+import { useParkingMotion } from "@/lib/use-parking-motion";
 import { SiteBrand } from "./site-brand";
 import { CampusPlate, plan, plotPosition, ZoneLocator } from "./campus-plate";
 
@@ -339,6 +361,9 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
   const results = zones.filter((row) => (!category || row.category === category)
     && (row.code + " " + row.name).toLowerCase().includes(term));
   const visible = expanded ? results : results.slice(0, firstPage);
+  const cover = useParkingMotion<HTMLElement>(".atlas-kicker, .atlas-lead, .atlas-actions > *, .atlas-totals > div");
+  const indexList = useParkingMotion<HTMLUListElement>("li", visible.map((row) => row.code).join(","), true);
+  const slip = useParkingMotion<HTMLDivElement>(".atlas-zone-code, .atlas-zone-choice p", selected);
 
   function locate(code: string) {
     setSelected(code);
@@ -363,7 +388,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
     </header>
     <main className="atlas-width">
       <div className="atlas-spread">
-        <section className="atlas-cover" aria-labelledby="atlas-title">
+        <section ref={cover} className="atlas-cover" aria-labelledby="atlas-title">
           <p className="atlas-kicker"><span />University of Moratuwa</p>
           <h1 id="atlas-title" aria-label="Parking atlas"><span className="atlas-word"><b>Parking</b></span><span className="atlas-word"><b>atlas<i>.</i></b></span></h1>
           <p className="atlas-lead">Pick a zone on the Katubedda campus plan. Sign in to check which spaces fit your vehicle.</p>
@@ -392,7 +417,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
             <ZoneLocator zone={zone} />
             <div className="atlas-legend"><i /> Parking zone {trace && <span>UoM Main Street</span>}</div>
           </CampusPlate>
-          <div className="atlas-slip">
+          <div ref={slip} className="atlas-slip">
             <span className="atlas-zone-code" aria-hidden="true">{zone.code}</span>
             <div className="atlas-zone-choice">
               <label className="sr-only" htmlFor="atlas-zone">Choose a parking zone</label>
@@ -426,7 +451,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
           </div>
         </div>
         <p className="sr-only" role="status">{results.length} matching zones</p>
-        <ul className="atlas-index">
+        <ul ref={indexList} className="atlas-index">
           {visible.map((row) => <li key={row.code}>
             <button onClick={() => locate(row.code)} aria-label={"Show " + row.code + " " + row.name + " on campus plan"}>
               <span className="index-code">{row.code}</span>
@@ -714,6 +739,7 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
 .street-trace { position: absolute; inset: 0; pointer-events: none; }
 .street-trace i { position: absolute; height: 0; transform-origin: left center; }
 .street-trace b { position: absolute; inset: -2px 0 auto; height: 4px; border-radius: 2px; background: #ffe786; box-shadow: 0 0 0 1px #6b572d; transform-origin: left; }
+.trace-marker { position: absolute; width: .75rem; height: .75rem; border-radius: 50%; transform: translate(-50%, -50%); background: #fff9dc; border: 2px solid #70461e; box-shadow: 0 0 0 3px #ffe78699; }
 .atlas-slip { padding: .7rem .85rem; min-height: 4.75rem; border-top: 1px solid var(--ink); }
 .atlas-zone-code { padding: .4rem .5rem; min-width: 3.5rem; text-align: center; border: 1px solid #9d522b; background: #ffb183; font: 800 1.8rem/1 var(--display); }
 .atlas-zone-choice { flex: 1; min-width: 0; }
@@ -852,6 +878,30 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
   .atlas-mast .site-brand { gap: .4rem; font-size: .86rem; }
 }
 @media (prefers-reduced-motion: no-preference) {
+  @keyframes atlas-scan { from { transform: translateX(-100%); } to { transform: translateX(410%); } }
+  @keyframes map-stamp { from { transform: translateY(-9px) scale(1.1); opacity: .4; } to { transform: none; opacity: 1; } }
+  @keyframes toggle-mark { 50% { transform: rotate(-12deg) scale(1.16); } }
+  @keyframes meter-open { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+  .availability-list progress { animation: meter-open .55s ease-out backwards; }
+  .availability-list li:nth-child(2) progress { animation-delay: .045s; }
+  .availability-list li:nth-child(3) progress { animation-delay: .09s; }
+  .availability-list li:nth-child(4) progress { animation-delay: .135s; }
+  .availability-list li:nth-child(5) progress { animation-delay: .18s; }
+  .atlas-sheet .atlas-plate::after {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 25%; z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg, transparent, #ffddab17 85%, #ffe3b855);
+    border-right: 1px solid #f9e1a98a; animation: atlas-scan 1.15s .12s ease-in-out both;
+  }
+  .atlas-landmark span { animation: map-stamp .38s .3s cubic-bezier(.2,.72,.3,1.2) backwards; }
+  .atlas-landmark + .atlas-landmark span { animation-delay: .44s; }
+  .atlas-landmark + .atlas-landmark + .atlas-landmark span { animation-delay: .58s; }
+  .map-tools button[aria-pressed="true"] svg, .app-nav button[aria-pressed="true"] svg { animation: toggle-mark .28s ease-out; }
+  .atlas-index button strong, .atlas-key, .map-tools button { transition: translate .18s ease-out, background-color .18s ease-out; }
+  .atlas-key:active, .map-tools button:active { translate: 0 1px; }
+  @media (hover: hover) {
+    .atlas-index button:hover strong { translate: .35rem 0; }
+    .atlas-key:hover { translate: 0 -2px; }
+  }
   @keyframes title-print { from { transform: translateY(.42em); } to { transform: none; } }
   @keyframes sheet-settle { from { transform: perspective(950px) rotateX(3deg) translateY(10px); } to { transform: none; } }
   @keyframes ring-settle { from { transform: scale(1.85); opacity: .4; } to { transform: scale(1); opacity: 1; } }

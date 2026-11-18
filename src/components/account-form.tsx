@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRight, GraduationCap, UserRound } from "lucide-react";
 import { browserAuth } from "@/lib/supabase-browser";
+import { useParkingMotion } from "@/lib/use-parking-motion";
 
 type Mode = "signin" | "campus" | "visitor" | "forgot" | "reset";
 const titles: Record<Mode, string> = {
@@ -22,6 +23,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
   const [message, setMessage] = useState(expired ? "This link expired or was already used. Request a new one." : "");
   const [busy, setBusy] = useState(false);
   const signup = mode === "campus" || mode === "visitor";
+  const formPanel = useParkingMotion<HTMLElement>(".auth-title, form > label, .auth-submit", mode);
 
   function changeMode(next: Mode) {
     setMode(next);
@@ -69,7 +71,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
     }
   }
 
-  return <section className="auth-card" aria-labelledby="account-title">
+  return <section ref={formPanel} className="auth-card" aria-labelledby="account-title">
     <div className="auth-title">
       <h1 id="account-title">{titles[mode]}</h1>
       <p className="muted">{instructions[mode]}</p>

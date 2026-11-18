@@ -491,6 +491,7 @@ import { ParkingOverview } from "./parking-overview";
 import { SiteBrand } from "./site-brand";
 import { Staff } from "./staff";
 import { useParkingUpdates } from "./realtime";
+import { useParkingMotion } from "@/lib/use-parking-motion";
 
 type Tab = "Home" | "Map" | "Find Parking" | "My Parking" | "Profile" | "Notices" | "Operations";
 type Home = { vehicles: Vehicle[]; sessions: (Session & { vehicle_id: string; space_id: string })[]; notices: Notice[]; rules: Rule[] };
@@ -523,6 +524,10 @@ function status(space: Space, vehicle: string, syncedVehicle: string | null) {
 export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; demo: boolean }) {
   const [profile, setProfile] = useState(initialProfile);
   const [tab, setTab] = useState<Tab>("Home");
+  const mainPanel = useParkingMotion<HTMLElement>(
+    ".board-head, .board-ledger, .overview-grid > .card, .dashboard-secondary > .card, .page-intro, .panel-grid > .card, .map-tools > button, .mobile-sheet > .actions, .find-panel > h2, .app-main > .card > h2",
+    tab,
+  );
   const [home, setHome] = useState<Home>(empty);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [campus, setCampus] = useState<Campus>();
@@ -531,6 +536,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   const [vehicleChoice, setVehicleChoice] = useState<string | null>(null);
   const [zoneId, setZoneId] = useState("");
   const [spaceId, setSpaceId] = useState("");
+  const details = useParkingMotion<HTMLElement>("h2, .zone-metrics > span, .record > strong", [tab, zoneId, spaceId].join("/"));
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [visibleCategories, setVisibleCategories] = useState<readonly Category[]>(categories);
   const [search, setSearch] = useState("");
@@ -737,7 +743,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
       </div>
     </aside>
 
-    <main className="shell app-main">
+    <main ref={mainPanel} className="shell app-main">
       <header className="app-head">
         <div className="mobile-brand"><SiteBrand /></div>
         <div className="app-location"><MapPin size={17} aria-hidden="true" /> University of Moratuwa</div>
@@ -785,7 +791,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
             <button disabled={!vehicle || !canClaim || !campus} onClick={findNearest}>Nearest free</button>
             {active.length > 0 && <button onClick={showMySpot}>My spot</button>}
           </div>
-          {selectedZone && <section className="stack" aria-label="Selected parking zone">
+          {selectedZone && <section ref={details} className="stack" aria-label="Selected parking zone">
             <div className="actions">
               <span className="tag" style={{ borderLeft: "5px solid " + categoryDisplay[selectedZone.category].color }}>
                 {selectedZone.code} · {categoryDisplay[selectedZone.category].label}

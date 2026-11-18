@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crosshair, MapPin, Route, Search } from "lucide-react";
 import { campusDirectionsUrl, categories, categoryDisplay } from "@/lib/contracts";
 import { StreetTrace } from "./street-trace";
+import { useParkingMotion } from "@/lib/use-parking-motion";
 import { SiteBrand } from "./site-brand";
 import { CampusPlate, plan, plotPosition, ZoneLocator } from "./campus-plate";
 
@@ -38,6 +39,9 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
   const results = zones.filter((row) => (!category || row.category === category)
     && (row.code + " " + row.name).toLowerCase().includes(term));
   const visible = expanded ? results : results.slice(0, firstPage);
+  const cover = useParkingMotion<HTMLElement>(".atlas-kicker, .atlas-lead, .atlas-actions > *, .atlas-totals > div");
+  const indexList = useParkingMotion<HTMLUListElement>("li", visible.map((row) => row.code).join(","), true);
+  const slip = useParkingMotion<HTMLDivElement>(".atlas-zone-code, .atlas-zone-choice p", selected);
 
   function locate(code: string) {
     setSelected(code);
@@ -62,7 +66,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
     </header>
     <main className="atlas-width">
       <div className="atlas-spread">
-        <section className="atlas-cover" aria-labelledby="atlas-title">
+        <section ref={cover} className="atlas-cover" aria-labelledby="atlas-title">
           <p className="atlas-kicker"><span />University of Moratuwa</p>
           <h1 id="atlas-title" aria-label="Parking atlas"><span className="atlas-word"><b>Parking</b></span><span className="atlas-word"><b>atlas<i>.</i></b></span></h1>
           <p className="atlas-lead">Pick a zone on the Katubedda campus plan. Sign in to check which spaces fit your vehicle.</p>
@@ -91,7 +95,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
             <ZoneLocator zone={zone} />
             <div className="atlas-legend"><i /> Parking zone {trace && <span>UoM Main Street</span>}</div>
           </CampusPlate>
-          <div className="atlas-slip">
+          <div ref={slip} className="atlas-slip">
             <span className="atlas-zone-code" aria-hidden="true">{zone.code}</span>
             <div className="atlas-zone-choice">
               <label className="sr-only" htmlFor="atlas-zone">Choose a parking zone</label>
@@ -125,7 +129,7 @@ export function ParkingAtlas({ demo }: { demo: boolean }) {
           </div>
         </div>
         <p className="sr-only" role="status">{results.length} matching zones</p>
-        <ul className="atlas-index">
+        <ul ref={indexList} className="atlas-index">
           {visible.map((row) => <li key={row.code}>
             <button onClick={() => locate(row.code)} aria-label={"Show " + row.code + " " + row.name + " on campus plan"}>
               <span className="index-code">{row.code}</span>
