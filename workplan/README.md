@@ -9,11 +9,15 @@ This manual contains a complete source listing for the hosted student-project de
 | 3 | [Campus data, proposed inventory, and 2D/3D maps](03-campus-map.md) |
 | 4 | [Driver screens, parking sessions, and live updates](04-driver-live-parking.md) |
 | 5 | [Officer and administrator operations](05-operations.md) |
-| 6 | [PWA, verification, Vercel hosting, and operations](06-testing-and-hosting.md) |
+| 6 | [PWA, verification, CI/CD, and Vercel hosting](06-testing-and-hosting.md) |
 
 See [the product architecture](../docs/ARCHITECTURE.md) for the full campus-pilot vision. [Phase 3](03-campus-map.md#public-campus-references) records the public UoM references and the Google Maps link for campus-level directions. The demo uses the 27 proposed zones and 440 planned spaces from the supplied project materials. The named A3 planning PDF and verified field inventory are still pending. Campus-internal GPS routing, scheduled announcements, push notifications, and expanded analytics follow the demo.
 
 The app uses **six account roles and three permission levels**. Students, lecturers, university staff, and visitors share the Driver experience. Security Officers use the officer desk, and Administrators manage the system. Parking eligibility depends on the account's role or a specific grant, the selected vehicle, and the zone's rules. See the [permission matrix](05-operations.md#roles-and-permissions).
+
+## CI and production deployment
+
+GitHub Actions runs app and PostgreSQL checks for pull requests and changes to `main`. Vercel deploys `main` automatically. The production smoke job matches Vercel's status to the pushed commit and checks the live HTTPS site. [GitHub Actions](https://github.com/nadija-smwg/uom-smart-parking/actions/workflows/check.yml) · [Production site](https://uom-smart-parking.vercel.app/) · [Phase 6 release workflow](06-testing-and-hosting.md#continuous-integration-and-deployment)
 
 ## Materialize the complete application
 

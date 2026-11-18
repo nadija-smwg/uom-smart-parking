@@ -35,6 +35,18 @@ Open `http://localhost:3000`. Stop the development server and run `npm run start
 
 Vercel Hobby is for eligible personal, non-commercial use. Free Supabase projects may pause after inactivity. Use university-approved plans and dedicated services for a campus pilot. [Vercel Hobby](https://vercel.com/docs/plans/hobby) · [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
 
+## Continuous integration and deployment
+
+Push a branch and open a pull request to run the app and database checks. A push or merge to `main` starts GitHub Actions and Vercel's production build in parallel. The Vercel Git connection publishes successful builds from `main` to the [production site](https://uom-smart-parking.vercel.app/). [Vercel for GitHub](https://vercel.com/docs/git/vercel-for-github)
+
+| Check | What it verifies |
+| --- | --- |
+| App checks | Installs from `package-lock.json` on Node.js 24, generates assets, and runs campus tests, TypeScript, and the Next.js production build. |
+| PostgreSQL checks | Creates a disposable PostgreSQL service, installs the Auth and Realtime fixtures, runs the migrations, and tests eligibility, concurrent claims, retries, limits, and releases. |
+| Production smoke test | After both CI jobs pass on `main`, waits for Vercel's success status on the same commit. Checks the homepage, sign-in redirect, access denial for the protected API, and the PWA manifest over HTTPS. |
+
+Review each release in [GitHub Actions](https://github.com/nadija-smwg/uom-smart-parking/actions/workflows/check.yml) and [Vercel Deployments](https://vercel.com/nadija/uom-smart-parking/deployments). Keep production database credentials in Vercel. The database tests use the service container, and the smoke job only needs GitHub's read-only workflow token. [GitHub PostgreSQL service containers](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)
+
 ## Operate and recover
 
 - Apply backwards-compatible migrations before new app features depend on them. Roll back application code to a schema-compatible deployment if a release fails.
@@ -46,12 +58,12 @@ Vercel Hobby is for eligible personal, non-commercial use. Free Supabase project
 
 ## Release verification
 
-- A clean dependency install, the campus tests, TypeScript, the production build, and the isolated PostgreSQL transaction tests passed. The `main` branch passed [GitHub Actions](https://github.com/nadija-smwg/uom-smart-parking/actions/runs/44367144868).
+- A clean dependency install, the campus tests, TypeScript, the production build, and isolated PostgreSQL transaction tests passed.
 - Real Supabase Auth running locally delivered confirmation and recovery emails to an isolated Mailpit inbox. Campus and visitor signups, one-use callbacks, pending campus approval, recovery error handling, and sign-in with the new password passed.
 - A regular Chrome test profile passed installability and portrait and landscape checks. The service worker cached only the public campus file, icons, and offline page. The offline fallback and reconnect path passed.
-- The app and workplan are saved in the [public GitHub repository](https://github.com/nadija-smwg/uom-smart-parking). The [Vercel project](https://vercel.com/nadija/uom-smart-parking) is linked and has production-only environment variables. Vercel paused the first deployment at its account identity check.
+- The [production deployment](https://uom-smart-parking.vercel.app/) responds over HTTPS. The sign-in redirect, anonymous API denial, PWA manifest, service worker, and campus asset were verified.
 
-After the account owner completes Vercel verification, confirm the production HTTPS address, configure the corresponding Supabase Site URL and callback, verify hosted SMTP, and bootstrap the first confirmed administrator. Then complete the two-device parking and physical-phone installation checks.
+The remaining hosted checks cover Supabase's production callback and SMTP, the first confirmed administrator, two-device parking, and physical-phone installation.
 
 ## Complete source files
 
@@ -316,16 +328,25 @@ try {
 <!-- file: .github/workflows/check.yml -->
 
 ```yaml
-name: Verify application
+name: CI and production verification
 
 on:
   pull_request:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   app:
+    name: App checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       APP_ENV: demo
       NEXT_PUBLIC_SUPABASE_URL: https://build-only.invalid
@@ -341,4 +362,116 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  database:
+    name: PostgreSQL checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: parking-ci-fixture
+          POSTGRES_DB: parking_ci
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parking_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      APP_ENV: demo
+      CONFIRM_DATABASE_TEST: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Create local Auth and Realtime fixtures
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER" psql -U postgres -d parking_ci -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create schema auth;
+          create table auth.users (id uuid primary key, email text not null);
+          create schema realtime;
+          create table realtime.messages (extension text);
+          alter table realtime.messages enable row level security;
+          create function realtime.topic() returns text language sql stable
+            as $$ select 'parking-campus'::text $$;
+          create function realtime.send(jsonb, text, text, boolean)
+            returns void language plpgsql as $$ begin return; end $$;
+          SQL
+      - name: Apply migrations and test transactions
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:parking-ci-fixture@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/parking_ci
+        run: |
+          npm run db:migrate
+          npm run test:database
+
+  production:
+    name: Production smoke test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [app, database]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify Vercel deployment and HTTPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import { setTimeout as delay } from "node:timers/promises";
+
+          const origin = "https://uom-smart-parking.vercel.app";
+          const project = "https://vercel.com/nadija/uom-smart-parking/";
+          const { GH_TOKEN, GITHUB_API_URL, GITHUB_REPOSITORY, GITHUB_SHA } = process.env;
+          const statusUrl = new URL(`/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/statuses`, GITHUB_API_URL);
+          const deadline = Date.now() + 7 * 60_000;
+          let deployment;
+
+          while (Date.now() < deadline) {
+            const response = await fetch(statusUrl, {
+              headers: { Authorization: `Bearer ${GH_TOKEN}` },
+              signal: AbortSignal.timeout(15_000),
+            });
+            assert.ok(response.ok, `GitHub commit statuses returned HTTP ${response.status}`);
+            deployment = (await response.json()).find((status) =>
+              status.context === "Vercel" && status.target_url?.startsWith(project));
+            if (deployment?.state === "success") break;
+            if (deployment?.state === "failure" || deployment?.state === "error") {
+              throw new Error(`Vercel reported ${deployment.state}: ${deployment.target_url}`);
+            }
+            await delay(15_000);
+          }
+          assert.equal(deployment?.state, "success", "Vercel did not report a successful deployment for this commit");
+          console.log(`Vercel deployed ${GITHUB_SHA}: ${deployment.target_url}`);
+
+          const get = (path) => fetch(origin + path, { redirect: "manual", signal: AbortSignal.timeout(15_000) });
+          const home = await get("/");
+          assert.equal(home.status, 200);
+          assert.match(await home.text(), /UoM Smart Parking/);
+          const parking = await get("/parking");
+          assert.equal(parking.status, 307);
+          assert.equal(new URL(parking.headers.get("location"), origin).pathname, "/account");
+          const api = await get("/api/v1/home");
+          assert.equal(api.status, 401);
+          assert.match(api.headers.get("cache-control"), /no-store/);
+          const manifest = await get("/manifest.webmanifest");
+          assert.equal(manifest.status, 200);
+          assert.equal((await manifest.json()).display, "standalone");
+          console.log(`Production smoke test passed: ${origin}`);
+          JS
 ```
