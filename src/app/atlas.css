@@ -49,7 +49,7 @@
 .atlas-word { overflow: clip; padding-bottom: .06em; }
 .atlas-word b { font-weight: inherit; }
 .atlas-word i, .pass-stub h2 span { color: var(--accent); font-style: normal; }
-.atlas-lead { max-width: 34rem; color: #424c45; font-size: clamp(1.16rem, 1.75vw, 1.55rem); line-height: 1.4; }
+.atlas-lead { max-width: 34rem; color: #424c45; font-size: clamp(1.08rem, 1.55vw, 1.4rem); line-height: 1.4; }
 .atlas-actions { flex-wrap: wrap; gap: .4rem 1.3rem; margin-block: 1.5rem; }
 .atlas-site .atlas-actions a { font-size: clamp(1.05rem, 1.35vw, 1.3rem); }
 .atlas-totals { display: flex; gap: clamp(1.4rem, 4.2vw, 5rem); max-width: 26rem; padding-top: 1.05rem; border-top: 1px solid var(--line); }
@@ -197,7 +197,7 @@
   .atlas-spread { grid-template-columns: 1fr; padding: 1.65rem 0 2rem; gap: 1.35rem; }
   .atlas-cover h1 { display: flex; flex-wrap: wrap; column-gap: .14em; font-size: clamp(3.8rem, 18vw, 7.25rem); line-height: .86; margin-block: .75rem; }
   .atlas-word { display: inline-block; }
-  .atlas-lead { font-size: 1.15rem; max-width: 32rem; }
+  .atlas-lead { font-size: 1.0625rem; max-width: 32rem; }
   .atlas-actions { margin-block: .9rem 0; }
   .atlas-totals { margin-top: 1rem; padding-top: .75rem; }
   .atlas-turn { flex-direction: row; }
