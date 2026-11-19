@@ -20,6 +20,7 @@ Open `http://localhost:3000`. Stop the development server and run `npm run start
 | Auth and roles | Test Campus and Visitor signup, email confirmation, reset, pending approval, each of the six roles, and suspension. In a pilot, verify TOTP for Security Officers and Administrators. |
 | Domain | Rejection of invalid or duplicate vehicles, excluded visitors, concurrent claims, repeated claim and release requests, and closure during an active session. |
 | Live state | A second device updates after park and leave. Offline state blocks writes, and reconnect refreshes before a claim. |
+| Partial dashboard load | In a test environment return a temporary error from either the home or campus API. Check that the successful section appears immediately, a retry restores the failed section, and a later outage preserves the last successful counts. |
 | Recovery | In a test environment, temporarily fail the campus asset request. Restore it and verify both **Retry campus map** and reconnect load the plan. Interrupt sign-out and verify the screen reports the failure. Retry successfully, then open the protected parking page and verify it requires sign-in. |
 | Map and mobile | Compare the 2D plan to the supplied HTML. Check road and building search, selection and live status, keyboard access, pinch and pan, and the parking action below the map. Review portrait and landscape on Android Chrome and iPhone Safari. Confirm the directions link reaches the Katubedda campus address. |
 | Operations | Verify that drivers receive `403` on officer and admin endpoints, officers can correct a session with a reason and receive `403` on admin endpoints, and admins can assign roles with an audit record. Check closure, reopening, targeted notices, and CSV. |
@@ -31,7 +32,7 @@ Open `http://localhost:3000`. Stop the development server and run `npm run start
 2. **Prepare Supabase.** Apply migrations and seed the demo project. Enable the limited runtime login and bootstrap a confirmed admin account. Configure SMTP for signups with external addresses. [Supabase SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp)
 3. **Import into Vercel.** The repository root contains `package.json`. Keep **Root Directory** at the repository root, use the Next.js preset, and use Node.js 24. The install command is `npm ci` and the build command is `npm run build`. The build generates the public campus and icon assets. The Vercel CLI can also deploy from this directory after linking the project. [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs) · [Vercel Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions) · [Vercel CLI deployment](https://vercel.com/docs/cli/deploy)
 4. **Set Vercel variables.** Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (limited role, transaction pooler), `DATABASE_SSL_CA` (the Supabase CA PEM contents), `APP_ORIGIN` (canonical HTTPS URL), and `APP_ENV=demo`. Set `STALE_SESSION_HOURS` only to override the default. Keep owner credentials local. If testing Auth on a preview, use a separate Auth environment with a stable preview origin and matching redirect configuration. [Vercel environment variables](https://vercel.com/docs/environment-variables)
-5. **Configure the public URL.** Set the Supabase Site URL to the canonical HTTPS origin and allow its exact `/auth/confirm` callback. Apply the confirmation and recovery email templates from Phase 1. Redeploy after changing public environment variables. Set up DNS in Vercel if using a custom domain. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+5. **Configure the public URL.** In Supabase Authentication → URL Configuration, set **Site URL** to `https://uom-smart-parking.vercel.app`. Add both `https://uom-smart-parking.vercel.app/auth/confirm` and `https://uom-smart-parking.vercel.app/auth/confirm?type=recovery` under **Redirect URLs**. If an old confirmation opened localhost or expired, select **Resend confirmation** on the deployed sign-in page and use the newest email. Apply the confirmation and recovery email templates from Phase 1. Redeploy after changing public environment variables. Set up DNS in Vercel if using a custom domain. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
 6. **Smoke-test HTTPS.** Sign up with two inboxes you control, confirm and complete a parking session, confirm cross-device updates, and test an officer action and a targeted announcement.
 
 Vercel Hobby is for eligible personal, non-commercial use. Free Supabase projects may pause after inactivity. Use university-approved plans and dedicated services for a campus pilot. [Vercel Hobby](https://vercel.com/docs/plans/hobby) · [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
@@ -44,7 +45,7 @@ Push a branch and open a pull request to run the app and database checks. A push
 | --- | --- |
 | App checks | Installs from `package-lock.json` on Node.js 24, generates assets, and runs campus tests, TypeScript, and the Next.js production build. |
 | PostgreSQL checks | Creates a disposable PostgreSQL service, installs the Auth and Realtime fixtures, runs the migrations, and tests eligibility, concurrent claims, retries, limits, and releases. |
-| Production smoke test | After both CI jobs pass on `main`, waits for Vercel's success status on the same commit. Checks the homepage, sign-in redirect, access denial for the protected API, and the PWA manifest over HTTPS. |
+| Production smoke test | After both CI jobs pass on `main`, waits for Vercel's success status on the same commit. Checks the homepage, sign-in redirect, expired-link redirects from the homepage and confirmation callback, protected API access, and the PWA manifest over HTTPS. |
 
 Review each release in [GitHub Actions](https://github.com/nadija-smwg/uom-smart-parking/actions/workflows/check.yml) and [Vercel Deployments](https://vercel.com/nadija/uom-smart-parking/deployments). Keep production database credentials in Vercel. The database tests use the service container, and the smoke job only needs GitHub's read-only workflow token. [GitHub PostgreSQL service containers](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)
 
@@ -516,6 +517,11 @@ jobs:
           const parking = await get("/parking");
           assert.equal(parking.status, 307);
           assert.equal(new URL(parking.headers.get("location"), origin).pathname, "/account");
+          for (const path of ["/", "/auth/confirm"]) {
+            const expired = await get(path + "?error=access_denied&error_code=otp_expired");
+            assert.equal(expired.status, 307);
+            assert.equal(new URL(expired.headers.get("location"), origin).href, origin + "/account?error=link");
+          }
           const api = await get("/api/v1/home");
           assert.equal(api.status, 401);
           assert.match(api.headers.get("cache-control"), /no-store/);

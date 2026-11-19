@@ -42,7 +42,7 @@ export function useParkingUpdates(refresh: () => void, setOnline: (online: boole
     window.addEventListener("offline", network);
     window.addEventListener("focus", schedule);
     document.addEventListener("visibilitychange", schedule);
-    network();
+    if (!navigator.onLine) setOnline(false);
     return () => {
       closed = true;
       clearTimeout(timer);

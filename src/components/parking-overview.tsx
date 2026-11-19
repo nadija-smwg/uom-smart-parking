@@ -3,10 +3,12 @@ import { ArrowRight, ArrowUpRight, Bell, Bike, CarFront, History, MapPin, Square
 import { campusTime } from "@/lib/api";
 import { categories, categoryDisplay, type Notice, type Session, type Zone } from "@/lib/contracts";
 
-export function ParkingOverview({ name, zones, vehicleCount, active, notices, onFind, onMap, onSessions, onNotices }: {
+export function ParkingOverview({ name, zones, vehicleCount, accountStatus, availabilityStatus, active, notices, onFind, onMap, onSessions, onNotices }: {
   name: string;
   zones?: Zone[];
   vehicleCount: number;
+  accountStatus?: string;
+  availabilityStatus: string;
   active: Session[];
   notices: Notice[];
   onFind: () => void;
@@ -25,11 +27,11 @@ export function ParkingOverview({ name, zones, vehicleCount, active, notices, on
       <div className="board-count">
         <h2>Available spaces</h2>
         <strong className="board-value" key={available ?? "pending"}>{available ?? "—"}</strong>
-        <p>{zones ? "Across " + zones.length + " published zones" : "Waiting for campus availability"}</p>
+        <p>{zones ? "Across " + zones.length + " published zones" : availabilityStatus}</p>
       </div>
       <dl className="board-small-counts">
-        <div><dt>Active sessions</dt><dd>{zones ? active.length : "—"}</dd></div>
-        <div><dt>Registered vehicles</dt><dd>{zones ? vehicleCount : "—"}</dd></div>
+        <div><dt>Active sessions</dt><dd>{accountStatus ? "—" : active.length}</dd></div>
+        <div><dt>Registered vehicles</dt><dd>{accountStatus ? "—" : vehicleCount}</dd></div>
       </dl>
       <button className="board-map" onClick={onMap} aria-label="View campus">
         <CampusPlate />
@@ -58,7 +60,7 @@ export function ParkingOverview({ name, zones, vehicleCount, active, notices, on
               </div>
             </li>;
           })}
-        </ul> : <p className="muted">Waiting for parking availability.</p>}
+        </ul> : <p className="muted">{availabilityStatus}</p>}
       </section>
 
       <div className="dashboard-secondary">
@@ -72,7 +74,7 @@ export function ParkingOverview({ name, zones, vehicleCount, active, notices, on
             <div><h3>{session.zone_name}</h3><p className="small muted">{session.code} · {session.plate ?? session.kind}</p></div>
           </div>) : <div className="dashboard-record">
             <span className="feature-icon" data-tone="blue"><History size={18} aria-hidden="true" /></span>
-            <p className="small muted">{zones ? "No active sessions. Your current parking space will appear here." : "Loading your parking sessions…"}</p>
+            <p className="small muted">{accountStatus ?? "No active sessions. Your current parking space will appear here."}</p>
           </div>}
         </section>
         <section className="card">
@@ -83,7 +85,7 @@ export function ParkingOverview({ name, zones, vehicleCount, active, notices, on
             <div><h3>{notice.title}</h3><p className="small muted">{campusTime(notice.published_at)}</p></div>
           </article>) : <div className="dashboard-record">
             <span className="feature-icon" data-tone="sand"><Bell size={17} aria-hidden="true" /></span>
-            <p className="small muted">{zones ? "No current notices." : "Loading campus notices…"}</p>
+            <p className="small muted">{accountStatus ?? "No current notices."}</p>
           </div>}
         </section>
       </div>

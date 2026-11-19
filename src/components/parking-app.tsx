@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Bell, CarFront, Compass, History, House, LogOut, Map as MapIcon, MapPin, Search, Shield, SquareParking, UserRound } from "lucide-react";
-import { api, campusTime, mutation } from "@/lib/api";
+import { api, ApiRequestError, campusTime, mutation } from "@/lib/api";
 import { signOutAndRedirect } from "@/lib/supabase-browser";
 import { campusDirectionsUrl, categories, categoryDisplay, kinds, type Campus, type Category, type MapFocus, type Notice, type Profile, type Rule, type Session,
   type Space, type Vehicle, type Zone } from "@/lib/contracts";
@@ -49,7 +49,10 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
     ".board-head, .board-ledger, .overview-grid > .card, .dashboard-secondary > .card, .page-intro, .panel-grid > .card, .map-tools > button, .mobile-sheet > .actions, .find-panel > h2, .app-main > .card > h2",
     tab,
   );
-  const [home, setHome] = useState<Home>(empty);
+  const [accountData, setHome] = useState<Home | null>(null);
+  const home = accountData ?? empty;
+  const [accountError, setAccountError] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [campus, setCampus] = useState<Campus>();
   const [campusError, setCampusError] = useState(false);
@@ -72,34 +75,59 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   const [newNoticeId, setNewNoticeId] = useState("");
   const submitting = useRef(false);
   const request = useRef<AbortController | null>(null);
+  const refreshQueued = useRef(false);
   const keys = useRef(new Map<string, string>());
   const vehicle = vehicleChoice === "" ? "" : home.vehicles.find((row) => row.id === vehicleChoice)?.id ?? home.vehicles[0]?.id ?? "";
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<void> => {
     request.current?.abort();
     if (!navigator.onLine) return;
     const current = new AbortController();
     request.current = current;
+    refreshQueued.current = false;
+    const timeout = window.setTimeout(() => current.abort(), 20_000);
+    const relevant = () => request.current === current && navigator.onLine;
+    function failed(error: unknown, setError: (value: boolean) => void) {
+      if (!relevant()) return;
+      setError(true);
+      setSyncProblem(true);
+      if (error instanceof ApiRequestError) {
+        if (error.status === 401) window.location.replace("/account");
+        if (error.code === "MFA_REQUIRED") window.location.replace("/account?mode=mfa");
+        if (error.code === "ACCOUNT_UNAVAILABLE") window.location.reload();
+      }
+    }
     try {
       const options = { signal: current.signal };
-      const [data, currentMap] = await Promise.all([
-        api<HomeResponse>("home", options),
-        api<Snapshot>("campus" + (vehicle ? "?vehicle=" + encodeURIComponent(vehicle) : ""), options),
+      const loadAccount = api<HomeResponse>("home", options).then((data) => {
+        if (!relevant()) return;
+        const previous = previousNotices.current;
+        const added = previous && data.notices.find((notice) => !notice.read_at && !previous.has(notice.id));
+        if (added) setNewNoticeId(added.id);
+        previousNotices.current = new Set(data.notices.map((notice) => notice.id));
+        setHome(data);
+        setProfile(data.profile);
+        if (!canOpenOperations(data.profile))
+          setTab((currentTab) => currentTab === "Operations" ? "Home" : currentTab);
+        setAccountError(false);
+      });
+      const loadAvailability = api<Snapshot>("campus" + (vehicle ? "?vehicle=" + encodeURIComponent(vehicle) : ""), options).then((data) => {
+        if (!relevant()) return;
+        setSnapshot(data);
+        setSyncedVehicle(vehicle);
+        setAvailabilityError(false);
+      });
+      const outcomes = await Promise.all([
+        loadAccount.then(() => true, (error) => { failed(error, setAccountError); return false; }),
+        loadAvailability.then(() => true, (error) => { failed(error, setAvailabilityError); return false; }),
       ]);
-      if (current.signal.aborted || !navigator.onLine) return;
-      const previous = previousNotices.current;
-      const added = previous && data.notices.find((notice) => !notice.read_at && !previous.has(notice.id));
-      if (added) setNewNoticeId(added.id);
-      previousNotices.current = new Set(data.notices.map((notice) => notice.id));
-      setHome(data);
-      setProfile(data.profile);
-      if (!canOpenOperations(data.profile))
-        setTab((currentTab) => currentTab === "Operations" ? "Home" : currentTab);
-      setSnapshot(currentMap);
-      setSyncedVehicle(vehicle);
-      setSyncProblem(false);
-    } catch {
-      if (!current.signal.aborted) setSyncProblem(true);
+      if (relevant()) setSyncProblem(!outcomes.every(Boolean));
+    } finally {
+      clearTimeout(timeout);
+      if (request.current === current) {
+        request.current = null;
+        if (refreshQueued.current && navigator.onLine) void latestRefresh.current();
+      }
     }
   }, [vehicle]);
 
@@ -107,7 +135,10 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   useEffect(() => {
     latestRefresh.current = refresh;
     void refresh();
-    return () => request.current?.abort();
+    return () => {
+      request.current?.abort();
+      request.current = null;
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -122,10 +153,15 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   }, [campus, online, mapAttempt]);
   const network = useCallback((connected: boolean) => {
     request.current?.abort();
+    request.current = null;
     setOnline(connected);
+    setSyncedVehicle(null);
     setSyncProblem(true);
   }, []);
-  useParkingUpdates(() => void refresh(), network);
+  useParkingUpdates(() => {
+    if (request.current) refreshQueued.current = true;
+    else void refresh();
+  }, network);
 
   const zones = snapshot?.zones ?? [];
   const spaces = snapshot?.spaces ?? [];
@@ -244,6 +280,9 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
   const initials = profile.name.trim().split(/\s+/).slice(0, 2).map((word) => Array.from(word)[0]).join("").toUpperCase();
   const unread = home.notices.filter((notice) => !notice.read_at).length;
   const newNotice = home.notices.find((notice) => notice.id === newNoticeId && !notice.read_at);
+  const accountPending = !accountData;
+  const accountStatus = !online ? "Reconnect to load account data." : accountError ? "Account data is unavailable." : "Loading account data…";
+  const availabilityStatus = !online ? "Reconnect to check availability." : availabilityError ? "Campus availability is unavailable." : "Checking availability…";
 
   return <div className="app-layout">
     <aside className="side-rail">
@@ -272,7 +311,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
           <span className="sync-dot" data-state={!online ? "offline" : syncProblem ? "waiting" : "updated"} />
           <div>
             <strong>{!online ? "Offline. Parking changes are paused." :
-              syncProblem ? snapshot ? "Availability may be out of date." : "Checking availability…" : "Availability updated"}</strong>
+              !snapshot ? availabilityStatus : availabilityError || syncedVehicle !== vehicle ? "Availability may be out of date." : "Availability updated"}</strong>
             {snapshot && <time dateTime={snapshot.syncedAt}>Last refreshed {campusTime(snapshot.syncedAt)}</time>}
           </div>
         </div>
@@ -281,13 +320,18 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
           <button className="mobile-sign-out" aria-label="Sign out" onClick={() => void signOut()}><LogOut size={18} aria-hidden="true" /></button>
         </div>
       </header>
-      {online && syncProblem && <div className="app-alert"><button disabled={busy} onClick={() => void refresh()}>Refresh availability</button></div>}
+      {online && (accountError || availabilityError) && <div className="app-alert" role="status">
+        {accountError && <p>Could not refresh vehicles, sessions, and notices.</p>}
+        {availabilityError && <p>Could not refresh campus availability.</p>}
+        <button disabled={busy} onClick={() => void refresh()}>Refresh availability</button>
+      </div>}
       {!profile.verified && <p className="app-alert">Your campus role is waiting for administrator verification.</p>}
       {message && <p className="app-alert" role="status">{message}</p>}
       {tab !== "Notices" && newNotice && <div className="app-alert" role="status">New notice · {newNotice.title}{" "}
         <button className="text-action" onClick={() => goToTab("Notices")}>View notices</button></div>}
 
       {tab === "Home" ? <ParkingOverview name={profile.name} zones={snapshot?.zones} vehicleCount={home.vehicles.length}
+        accountStatus={accountPending ? accountStatus : undefined} availabilityStatus={availabilityStatus}
         active={active} notices={home.notices} onFind={() => goToTab("Find Parking")} onMap={() => goToTab("Map")}
         onSessions={() => goToTab("My Parking")} onNotices={() => goToTab("Notices")} /> : <div className="page-intro">
         <h1>{tab === "Map" ? "Campus map" : tab}</h1>
@@ -312,6 +356,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
             <button disabled={!vehicle || !canClaim || !campus} onClick={findNearest}>Nearest free</button>
             {active.length > 0 && <button onClick={showMySpot}>My spot</button>}
           </div>
+          {!snapshot && <p role="status">{availabilityStatus}</p>}
           {selectedZone && <section ref={details} className="stack" aria-label="Selected parking zone">
             <div className="actions">
               <span className="tag" style={{ borderLeft: "5px solid " + categoryDisplay[selectedZone.category].color }}>
@@ -402,11 +447,11 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
           </select></label>
         </div>
         <p className="muted">Distances use the schematic campus map. A space may be taken before you arrive.</p>
-        {!vehicle ? <div className="empty-state"><span className="feature-icon"><CarFront size={22} aria-hidden="true" /></span>
+        {accountPending ? <p>{accountStatus}</p> : !vehicle ? <div className="empty-state"><span className="feature-icon"><CarFront size={22} aria-hidden="true" /></span>
           <p>Register or select a vehicle to see eligible spaces.</p>
           <button className="text-action" onClick={() => goToTab("Profile")}>Manage vehicles <ArrowRight size={16} aria-hidden="true" /></button>
         </div> :
-          syncedVehicle !== vehicle ? <p role="status">Checking which spaces match your vehicle…</p> :
+          !snapshot || syncedVehicle !== vehicle ? <p role="status">{availabilityStatus}</p> :
           choices.length ? choices.slice(0, 30).map((space) =>
             <div className="result-row" key={space.id}><span className="feature-icon"><MapPin size={18} aria-hidden="true" /></span>
               <div><h3>{space.zone_name}</h3><p className="small muted">{space.code}</p></div>
@@ -415,7 +460,8 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
       </section>}
 
       {tab === "My Parking" && <section className="card stack"><h2>Parking sessions</h2>
-        {!home.sessions.length && <div className="empty-state"><span className="feature-icon"><History size={22} aria-hidden="true" /></span>
+        {accountPending && <p>{accountStatus}</p>}
+        {!accountPending && !home.sessions.length && <div className="empty-state"><span className="feature-icon"><History size={22} aria-hidden="true" /></span>
           <p>No parking sessions yet.</p><button className="text-action" onClick={() => goToTab("Find Parking")}>
             Find parking <ArrowRight size={16} aria-hidden="true" /></button></div>}
         {home.sessions.map((session) => <div className="result-row" key={session.id}>
@@ -440,6 +486,7 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
             <button className="primary" disabled={!writes}>Save name</button></form>
         </div>
         <div className="card stack"><h2>Vehicles</h2>
+          {accountPending && <p>{accountStatus}</p>}
           <VehicleForm disabled={!writes || !profile.verified} submit={(value) =>
             run(() => api("vehicles", mutation(value)), "Vehicle registered.")} />
           {home.vehicles.map((row) => <details className="record" key={row.id}>
@@ -454,13 +501,13 @@ export function ParkingApp({ initialProfile, demo }: { initialProfile: Profile; 
       </section>}
 
       {tab === "Notices" && <section className="panel-grid">
-        <div className="card"><h2>Campus notices</h2>{!home.notices.length && <p className="muted">No current notices.</p>}
+        <div className="card"><h2>Campus notices</h2>{!home.notices.length && <p className="muted">{accountPending ? accountStatus : "No current notices."}</p>}
           {home.notices.map((notice) => <article className="record" key={notice.id}><h3>{notice.title}</h3>
             <p>{notice.body}</p><p className="small">{campusTime(notice.published_at)}</p>
             {!notice.read_at && <button disabled={!writes} onClick={() => void run(() =>
               api("notifications/" + notice.id + "/read", mutation({})), "Marked as read.")}>Mark as read</button>}
           </article>)}</div>
-        <div className="card"><h2>Parking rules</h2>{!home.rules.length && <p>No published rules.</p>}
+        <div className="card"><h2>Parking rules</h2>{!home.rules.length && <p>{accountPending ? accountStatus : "No published rules."}</p>}
           {home.rules.map((rule) => <article className="record" key={rule.id}><h3>{rule.title}</h3><p>{rule.body}</p></article>)}</div>
       </section>}
 

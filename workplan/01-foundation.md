@@ -32,7 +32,7 @@ Copy-Item -LiteralPath .env.example -Destination .env.local
 
 ## Supabase Auth setup
 
-Use a dedicated Supabase project for the student demo. Enable email/password sign-in and email confirmation. Configure a minimum password length of 12 and custom SMTP for external recipients. Set the Supabase Site URL to the environment’s canonical origin and allow the exact callback URL. For local work that is `http://localhost:3000/auth/confirm`. Keep one canonical origin per Auth project for these server-side email templates. [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp) · [Supabase email templates](https://supabase.com/docs/guides/auth/auth-email-templates#redirecting-the-user-to-a-server-side-endpoint)
+Use a dedicated Supabase project for the student demo. Enable email/password sign-in and email confirmation. Configure a minimum password length of 12 and custom SMTP for external recipients. Set the Supabase Site URL to the environment’s canonical origin and allow the exact callback URL. For the deployed project use `https://uom-smart-parking.vercel.app` as the Site URL and add both callback URLs listed in Phase 6. For a separate local Auth project the callback is `http://localhost:3000/auth/confirm`. Keep one canonical origin per Auth project for these server-side email templates. [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp) · [Supabase email templates](https://supabase.com/docs/guides/auth/auth-email-templates#redirecting-the-user-to-a-server-side-endpoint)
 
 Use these links in the corresponding email templates.
 
@@ -834,7 +834,7 @@ export default async function AccountPage({ searchParams }: {
     <div className="auth-body">
       <header><SiteBrand /></header>
       <div className="auth-content">
-        {mode === "mfa" ? <MfaForm /> : <AccountForm reset={mode === "reset"} expired={error === "link"} />}
+        {mode === "mfa" ? <MfaForm /> : <AccountForm appOrigin={process.env.APP_ORIGIN} reset={mode === "reset"} expired={error === "link"} />}
       </div>
     </div>
     <figure className="campus-art auth-art">
@@ -857,10 +857,11 @@ import { ArrowRight, GraduationCap, UserRound } from "lucide-react";
 import { browserAuth } from "@/lib/supabase-browser";
 import { useParkingMotion } from "@/lib/use-parking-motion";
 
-type Mode = "signin" | "campus" | "visitor" | "forgot" | "reset";
+type Mode = "signin" | "campus" | "visitor" | "forgot" | "reset" | "resend";
 const titles: Record<Mode, string> = {
   signin: "Sign in", campus: "Campus registration", visitor: "Visitor registration",
   forgot: "Reset your password", reset: "Set a new password",
+  resend: "Resend confirmation",
 };
 const instructions: Record<Mode, string> = {
   signin: "Sign in to check parking availability and manage your sessions.",
@@ -868,9 +869,10 @@ const instructions: Record<Mode, string> = {
   visitor: "Create an account to find visitor parking on campus.",
   forgot: "Enter your account email to receive a password reset link.",
   reset: "Choose a password with at least 12 characters.",
+  resend: "Enter the email address you registered with to request a fresh confirmation link.",
 };
 
-export function AccountForm({ reset, expired }: { reset: boolean; expired: boolean }) {
+export function AccountForm({ reset, expired, appOrigin }: { reset: boolean; expired: boolean; appOrigin?: string }) {
   const [mode, setMode] = useState<Mode>(reset ? "reset" : "signin");
   const [message, setMessage] = useState(expired ? "This link expired or was already used. Request a new one." : "");
   const [busy, setBusy] = useState(false);
@@ -887,7 +889,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "").trim();
     const password = String(data.get("password") ?? "");
-    const callback = new URL("/auth/confirm", location.origin);
+    const callback = new URL("/auth/confirm", appOrigin || location.origin);
     setBusy(true);
     setMessage("");
     try {
@@ -906,6 +908,10 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
         });
         if (error) throw new Error("Registration could not be completed. Check the fields and try again.");
         setMessage("Check your inbox to confirm your email address.");
+      } else if (mode === "resend") {
+        const { error } = await auth.resend({ type: "signup", email, options: { emailRedirectTo: callback.href } });
+        if (error) throw new Error("A confirmation email could not be requested right now. Try again shortly.");
+        setMessage("If the address is awaiting confirmation, check your inbox and use the newest link.");
       } else if (mode === "forgot") {
         callback.searchParams.set("type", "recovery");
         const { error } = await auth.resetPasswordForEmail(email, { redirectTo: callback.href });
@@ -931,7 +937,7 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
     <form onSubmit={submit}>
       {signup && <label>Name<input name="name" autoComplete="name" required maxLength={100} /></label>}
       {mode !== "reset" && <label>Email<input name="email" type="email" autoComplete="email" required /></label>}
-      {mode !== "forgot" && <label>Password<input name="password" type="password"
+      {mode !== "forgot" && mode !== "resend" && <label>Password<input name="password" type="password"
         autoComplete={mode === "signin" ? "current-password" : "new-password"}
         minLength={mode === "signin" ? 1 : 12} required /></label>}
       <button className="primary auth-submit" disabled={busy}>{busy ? "Please wait…" : titles[mode]}
@@ -940,14 +946,17 @@ export function AccountForm({ reset, expired }: { reset: boolean; expired: boole
     <p className="auth-feedback" role="status">{message}</p>
     <nav className="account-options" aria-label="Account options">
       {mode === "signin" ? <>
-        <button className="text-action" disabled={busy} onClick={() => changeMode("forgot")}>Reset your password</button>
+        <div className="actions">
+          <button className="text-action" disabled={busy} onClick={() => changeMode("forgot")}>Reset your password</button>
+          <button className="text-action" disabled={busy} onClick={() => changeMode("resend")}>Resend confirmation</button>
+        </div>
         <p className="account-options-title">Create an account</p>
         <div className="account-options-grid">
           <button disabled={busy} onClick={() => changeMode("campus")}><GraduationCap size={18} aria-hidden="true" /> Campus registration</button>
           <button disabled={busy} onClick={() => changeMode("visitor")}><UserRound size={18} aria-hidden="true" /> Visitor registration</button>
         </div>
       </> : <div className="actions">
-        {(["signin", "campus", "visitor", "forgot"] as const).filter((option) => option !== mode)
+        {(["signin", "campus", "visitor", "forgot", "resend"] as const).filter((option) => option !== mode)
           .map((option) => <button className="text-action" key={option} disabled={busy} onClick={() => changeMode(option)}>{titles[option]}</button>)}
       </div>}
     </nav>
@@ -1119,6 +1128,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabaseConfig } from "@/lib/supabase-config";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/") {
+    const origin = process.env.APP_ORIGIN ?? request.nextUrl.origin;
+    const code = request.nextUrl.searchParams.get("code");
+    const target = new URL(code ? "/auth/confirm" : "/account?error=link", origin);
+    if (code) {
+      target.searchParams.set("code", code);
+      if (request.nextUrl.searchParams.get("type") === "recovery") target.searchParams.set("type", "recovery");
+    }
+    return NextResponse.redirect(target, { headers: { "Cache-Control": "private, no-store" } });
+  }
   const { url, key } = supabaseConfig();
   let response = NextResponse.next({ request });
   const auth = createServerClient(url, key, {
@@ -1136,7 +1155,12 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/parking", "/account", "/api/v1/:path*"] };
+export const config = { matcher: [
+  "/parking", "/account", "/api/v1/:path*",
+  { source: "/", has: [{ type: "query", key: "code" }] },
+  { source: "/", has: [{ type: "query", key: "error_code" }] },
+  { source: "/", has: [{ type: "query", key: "error" }] },
+] };
 ```
 
 ### `src/lib/use-parking-motion.ts`

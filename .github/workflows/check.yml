@@ -140,6 +140,11 @@ jobs:
           const parking = await get("/parking");
           assert.equal(parking.status, 307);
           assert.equal(new URL(parking.headers.get("location"), origin).pathname, "/account");
+          for (const path of ["/", "/auth/confirm"]) {
+            const expired = await get(path + "?error=access_denied&error_code=otp_expired");
+            assert.equal(expired.status, 307);
+            assert.equal(new URL(expired.headers.get("location"), origin).href, origin + "/account?error=link");
+          }
           const api = await get("/api/v1/home");
           assert.equal(api.status, 401);
           assert.match(api.headers.get("cache-control"), /no-store/);

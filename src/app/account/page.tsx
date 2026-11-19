@@ -17,7 +17,7 @@ export default async function AccountPage({ searchParams }: {
     </header>
     <main className="atlas-pass">
       <div className="pass-entry">
-        {mode === "mfa" ? <MfaForm /> : <AccountForm reset={mode === "reset"} expired={error === "link"} />}
+        {mode === "mfa" ? <MfaForm /> : <AccountForm appOrigin={process.env.APP_ORIGIN} reset={mode === "reset"} expired={error === "link"} />}
       </div>
       <aside className="pass-stub">
         <p className="atlas-mono">University of Moratuwa</p>
